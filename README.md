@@ -47,9 +47,9 @@ Pantser is a premium, zero-maintenance native Android application designed speci
 
 Pantser is built with pure, high-performance native Android components:
 
-- **[`AppStore.kt`](app/src/main/java/com/nova/pantsizepdf/AppStore.kt):** Handles local-only persistence using `SharedPreferences` and manages generated PDF files in internal app storage (`filesDir`). Automatically cleans up duplicate records and removes files older than 7 days (configurable).
-- **[`PdfGenerator.kt`](app/src/main/java/com/nova/pantsizepdf/PdfGenerator.kt):** Uses Android's native `PdfDocument` and `Canvas` APIs to draw exact US Letter dimensions (8.5 x 11 inches at 72 DPI), centering bold 24pt text perfectly inside table cells.
-- **[`MainActivity.kt`](app/src/main/java/com/nova/pantsizepdf/MainActivity.kt):** Programmatically constructs the entire responsive view hierarchy, handling dynamic styling, viewpager navigation, back button dispatching, keyboard insets, and print job dispatching via Android's `PrintManager`.
+- **[`AppStore.kt`](app/src/main/java/com/pantser/landc/AppStore.kt):** Handles local-only persistence using `SharedPreferences` and manages generated PDF files in internal app storage (`filesDir`). Automatically cleans up duplicate records and removes files older than 7 days (configurable).
+- **[`PdfGenerator.kt`](app/src/main/java/com/pantser/landc/PdfGenerator.kt):** Uses Android's native `PdfDocument` and `Canvas` APIs to draw exact US Letter dimensions (8.5 x 11 inches at 72 DPI), centering bold 24pt text perfectly inside table cells.
+- **[`MainActivity.kt`](app/src/main/java/com/pantser/landc/MainActivity.kt):** Programmatically constructs the entire responsive view hierarchy, handling dynamic styling, viewpager navigation, back button dispatching, keyboard insets, and print job dispatching via Android's `PrintManager`.
 
 ---
 

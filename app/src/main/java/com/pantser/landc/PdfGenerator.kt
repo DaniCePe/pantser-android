@@ -1,4 +1,4 @@
-package com.nova.pantsizepdf
+package com.pantser.landc
 
 import android.graphics.Color
 import android.graphics.Paint

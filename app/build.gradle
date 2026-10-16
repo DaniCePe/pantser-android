@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = 'com.nova.pantsizepdf'
+    namespace = 'com.pantser.landc'
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.nova.pantsizepdf"
+        applicationId = "com.pantser.landc"
         minSdk = 29
         targetSdk = 34
         versionCode = 1

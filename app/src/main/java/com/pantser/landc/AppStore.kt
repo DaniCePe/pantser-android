@@ -1,4 +1,4 @@
-package com.nova.pantsizepdf
+package com.pantser.landc
 
 import android.content.Context
 import org.json.JSONArray
