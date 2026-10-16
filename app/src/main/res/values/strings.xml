@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Pantser</string>
+    <string name="retro_title">Pantser - [Main Window]</string>
+    <string name="prompt_what_size">What size?</string>
+    <string name="generate_pdf">Generate PDF</string>
+    <string name="using_layout">Using %1$s US Layout</string>
+    <string name="privacy_note">Your label PDF is stored privately and reused by dimensions.</string>
+    <string name="hint_example">e.g. 32 x 30</string>
+    <string name="create_label_btn">CREATE LABEL  →</string>
+    <string name="setting_print_mode">Print Mode</string>
+    <string name="print_mode_classic">Classic</string>
+    <string name="print_mode_classic_sub">One Label Type</string>
+    <string name="print_mode_advanced">Advanced</string>
+    <string name="print_mode_advanced_sub">%1$d Labels, %2$d Columns</string>
+    <string name="label_column_x">Column %1$d</string>
+    <string name="jump_to_previous_unsaved">← Jump to previous blank size</string>
+    <string name="err_invalid_column">Check all column sizes.</string>
+    <string name="quick_print_title">Quick print</string>
+    <string name="no_recent_labels">Your recently printed labels will appear here.</string>
+    <string name="print_count_text">%1$d prints</string>
+    <string name="err_empty_size">Type in a size first.</string>
+    <string name="err_create_fail">Could not create label: %1$s</string>
+
+    <string name="insights_title">Insights</string>
+    <string name="insights_sub">A quick view of your activity. Prints are tracked only for successful document preparation.</string>
+    <string name="stat_total_printed">TOTAL LABELS EVER PRINTED</string>
+    <string name="stat_total_printed_desc">Cumulative successful print jobs</string>
+    <string name="stat_unique_pdfs">UNIQUE PDFS</string>
+    <string name="stat_unique_pdfs_desc">Distinct dimensions generated</string>
+    <string name="stat_saved_pdfs">SAVED PDFS</string>
+    <string name="stat_saved_pdfs_desc">Current files in storage</string>
+    <string name="most_printed_title">Most printed sizes</string>
+    <string name="no_history">No print history yet. Create a label to get started.</string>
+    <string name="history_item_format">%1$d.  %2$s     %3$d prints</string>
+    <string name="storage_used">Storage used: %1$s</string>
+
+    <string name="manual_title">Pantser User Manual</string>
+    <string name="manual_welcome">Welcome to Pantser, the premium, zero-maintenance label generator designed specifically for apparel size printing on US Letter pages.</string>
+    <string name="manual_concept_title">Core Concept: Dimension Identity &amp; Reuse</string>
+    <string name="manual_concept_body">Pantser eliminates file clutter entirely. When you generate a print dimension like \'32 x 30\', the app treats those dimensions as a unique identity. Instead of creating a new file every time, it intelligently checks for an existing file matching that exact size configuration, instantly reusing it.</string>
+    <string name="manual_steps_title">Step-by-Step Instructions</string>
+    <string name="manual_steps_body">1. Enter Dimensions: Click the input field and type your size (e.g., \'34 x 32\' or \'M\').\n\n2. Click Create: Press \'CREATE LABEL\'. The app builds a high-resolution grid PDF or opens the existing one immediately.\n\n3. System Print: The Android system print dialogue will open automatically.\n\n4. Quick print: Once printed, it appears in your \'Quick print\' tray for one-tap generation.</string>
+    <string name="manual_settings_title">Settings Guide</string>
+    <string name="manual_settings_body">• Theme Mode: Switch between System Default, Dark Mode, and Light Mode.\n\n• Theme Palette: Choose from custom blended themes like Ember Night, Lavender Cream, or Spring Pastel.\n\n• Paper Layout: Configure the grid columns and rows.\n\n• Export &amp; Cleanup: Extract PDFs to downloads or manage storage via cache/old file removal.</string>
+
+    <string name="section_utilities">Utilities</string>
+    <string name="setting_sort_format">Quick print sorting format</string>
+    <string name="sort_last_used">Last Used</string>
+    <string name="sort_freq_used">Frequently Used</string>
+    <string name="setting_back_behavior">Back button on homescreen</string>
+    <string name="back_behavior_ask">Ask user</string>
+    <string name="back_behavior_one_press">One press exit</string>
+    <string name="back_behavior_two_press">Two press exit</string>
+    <string name="back_behavior_disable">Disable exit</string>
+    <string name="dialog_exit_title">Exit app?</string>
+    <string name="dialog_exit_msg">Are you sure you want to exit?</string>
+    <string name="btn_exit">Exit</string>
+    <string name="toast_press_again_exit">Press back again to exit</string>
+    <string name="setting_layout">Paper layout</string>
+    <string name="setting_export">Export a saved PDF</string>
+    <string name="setting_export_sub">Copy to external storage</string>
+    <string name="setting_language">App Language</string>
+
+    <string name="section_storage">Storage &amp; Data</string>
+    <string name="setting_cleanup">Automatic Cleanup</string>
+    <string name="setting_cleanup_sub">Automatically remove generated PDFs older than 7 days.</string>
+    <string name="setting_delete_cache">Delete cache</string>
+    <string name="setting_delete_cache_sub">Clear temporary files</string>
+    <string name="setting_delete_old">Delete old PDFs</string>
+    <string name="setting_delete_old_sub">Remove older files manually</string>
+    <string name="setting_reset">Reset statistics</string>
+    <string name="setting_reset_sub">Clear lifetime history</string>
+
+    <string name="section_appearance">Appearance</string>
+    <string name="setting_theme_mode">Theme Mode</string>
+    <string name="setting_theme_palette">Theme Palette</string>
+    <string name="setting_theme_style">Theme Style</string>
+
+    <string name="dialog_reset_title">Reset?</string>
+    <string name="dialog_reset_msg">This clears all insights and print counts.</string>
+    <string name="btn_reset">Reset</string>
+    <string name="btn_cancel">Cancel</string>
+
+    <string name="mode_system">System default</string>
+    <string name="mode_light">Light</string>
+    <string name="mode_dark">Dark</string>
+
+    <string name="style_modern">Linear Modern</string>
+    <string name="style_retro">Retro 90s Nostalgia</string>
+    <string name="style_bauhaus">Bauhaus Geometric</string>
+    <string name="style_terminal">Terminal CLI</string>
+    <string name="style_dopamine">Dopamine Maximalism</string>
+
+    <string name="delete_7_days">Older than 7 days</string>
+    <string name="delete_30_days">Older than 30 days</string>
+    <string name="delete_90_days">Older than 90 days</string>
+    <string name="delete_all">Delete all saved PDFs</string>
+    <string name="toast_deleted">Deleted %1$d PDF%2$s.</string>
+    <string name="toast_no_pdfs">No saved PDFs yet.</string>
+    <string name="toast_exported">PDF exported.</string>
+    <string name="toast_export_failed">Export failed: %1$s</string>
+    <string name="toast_cache_cleared">Cache cleared.</string>
+    <string name="toast_stats_reset">Stats reset.</string>
+
+    <string name="lang_en">English</string>
+    <string name="lang_es">Español</string>
+</resources>

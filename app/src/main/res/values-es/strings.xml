@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Pantser</string>
+    <string name="retro_title">Pantser - [Ventana Principal]</string>
+    <string name="prompt_what_size">¿Qué tamaño?</string>
+    <string name="generate_pdf">Generar PDF</string>
+    <string name="using_layout">Usando diseño US %1$s</string>
+    <string name="privacy_note">Su PDF se guarda de forma privada y se reutiliza por dimensiones.</string>
+    <string name="hint_example">ej. 32 x 30</string>
+    <string name="create_label_btn">CREAR ETIQUETA  →</string>
+    <string name="setting_print_mode">Modo de Impresión</string>
+    <string name="print_mode_classic">Clásico</string>
+    <string name="print_mode_classic_sub">Un Solo Tipo de Talla</string>
+    <string name="print_mode_advanced">Avanzado</string>
+    <string name="print_mode_advanced_sub">%1$d Tallas, %2$d Columnas</string>
+    <string name="label_column_x">Columna %1$d</string>
+    <string name="jump_to_previous_unsaved">← Ir al tamaño anterior vacío</string>
+    <string name="err_invalid_column">Revise todos los tamaños.</string>
+    <string name="quick_print_title">Impresión rápida</string>
+    <string name="no_recent_labels">Tus etiquetas recientes aparecerán aquí.</string>
+    <string name="print_count_text">%1$d impresiones</string>
+    <string name="err_empty_size">Ingrese un tamaño primero.</string>
+    <string name="err_create_fail">No se pudo crear la etiqueta: %1$s</string>
+
+    <string name="insights_title">Estadísticas</string>
+    <string name="insights_sub">Vista rápida de actividad. Solo se cuentan impresiones exitosas.</string>
+    <string name="stat_total_printed">TOTAL ETIQUETAS IMPRESAS</string>
+    <string name="stat_total_printed_desc">Trabajos de impresión exitosos acumulados</string>
+    <string name="stat_unique_pdfs">PDFS ÚNICOS</string>
+    <string name="stat_unique_pdfs_desc">Dimensiones distintas generadas</string>
+    <string name="stat_saved_pdfs">PDFS GUARDADOS</string>
+    <string name="stat_saved_pdfs_desc">Archivos actuales en el almacenamiento</string>
+    <string name="most_printed_title">Tamaños más impresos</string>
+    <string name="no_history">Sin historial aún. Crea una etiqueta para comenzar.</string>
+    <string name="history_item_format">%1$d.  %2$s     %3$d impresiones</string>
+    <string name="storage_used">Espacio usado: %1$s</string>
+
+    <string name="manual_title">Manual de Usuario Pantser</string>
+    <string name="manual_welcome">Bienvenido a Pantser, el generador de etiquetas premium diseñado para la impresión de tallas en hojas US Letter.</string>
+    <string name="manual_concept_title">Concepto: Identidad y Reutilización</string>
+    <string name="manual_concept_body">Pantser elimina el desorden de archivos. Cuando genera una dimensión como \'32 x 30\', la app la trata como una identidad única y reutiliza el archivo existente.</string>
+    <string name="manual_steps_title">Instrucciones Paso a Paso</string>
+    <string name="manual_steps_body">1. Ingrese dimensiones: Escriba su talla (ej. \'34 x 32\' o \'M\').\n\n2. Clic en Crear: Pulse \'CREAR ETIQUETA\'. La app genera el PDF o abre el existente.\n\n3. Impresión: El diálogo de impresión del sistema se abrirá automáticamente.\n\n4. Impresión rápida: Aparecerá en su bandeja para generarlo con un toque.</string>
+    <string name="manual_settings_title">Guía de Ajustes</string>
+    <string name="manual_settings_body">• Modo: Cambie entre Predeterminado, Oscuro y Claro.\n\n• Paleta: Elija temas personalizados como Ember Night o Spring Pastel.\n\n• Diseño: Configure las filas y columnas.\n\n• Exportar: Guarde PDFs en descargas o limpie el almacenamiento.</string>
+
+    <string name="section_utilities">Utilidades</string>
+    <string name="setting_sort_format">Formato de orden de impresión</string>
+    <string name="sort_last_used">Último uso</string>
+    <string name="sort_freq_used">Más frecuente</string>
+    <string name="setting_back_behavior">Botón de retroceso en inicio</string>
+    <string name="back_behavior_ask">Preguntar al usuario</string>
+    <string name="back_behavior_one_press">Salir con una pulsación</string>
+    <string name="back_behavior_two_press">Salir con dos pulsaciones</string>
+    <string name="back_behavior_disable">Deshabilitar salida</string>
+    <string name="dialog_exit_title">¿Salir de la aplicación?</string>
+    <string name="dialog_exit_msg">¿Estás seguro de que deseas salir?</string>
+    <string name="btn_exit">Salir</string>
+    <string name="toast_press_again_exit">Presiona atrás de nuevo para salir</string>
+    <string name="setting_layout">Diseño de papel</string>
+    <string name="setting_export">Exportar PDF guardado</string>
+    <string name="setting_export_sub">Copiar al almacenamiento externo</string>
+    <string name="setting_language">Idioma de la aplicación</string>
+
+    <string name="section_storage">Almacenamiento y Datos</string>
+    <string name="setting_cleanup">Limpieza Automática</string>
+    <string name="setting_cleanup_sub">Eliminar PDFs con más de 7 días de antigüedad.</string>
+    <string name="setting_delete_cache">Borrar caché</string>
+    <string name="setting_delete_cache_sub">Limpiar archivos temporales</string>
+    <string name="setting_delete_old">Borrar PDFs antiguos</string>
+    <string name="setting_delete_old_sub">Eliminar archivos manualmente</string>
+    <string name="setting_reset">Reiniciar estadísticas</string>
+    <string name="setting_reset_sub">Borrar historial de por vida</string>
+
+    <string name="section_appearance">Apariencia</string>
+    <string name="setting_theme_mode">Modo del Tema</string>
+    <string name="setting_theme_palette">Paleta del Tema</string>
+    <string name="setting_theme_style">Estilo del Tema</string>
+
+    <string name="dialog_reset_title">¿Reiniciar?</string>
+    <string name="dialog_reset_msg">Esto borrará todas las estadísticas y conteos.</string>
+    <string name="btn_reset">Reiniciar</string>
+    <string name="btn_cancel">Cancelar</string>
+
+    <string name="mode_system">Predeterminado</string>
+    <string name="mode_light">Claro</string>
+    <string name="mode_dark">Oscuro</string>
+
+    <string name="style_modern">Moderno Lineal</string>
+    <string name="style_retro">Nostalgia Retro 90s</string>
+    <string name="style_bauhaus">Geométrico Bauhaus</string>
+    <string name="style_terminal">Terminal CLI</string>
+    <string name="style_dopamine">Dopamina Maximalista</string>
+
+    <string name="delete_7_days">Más de 7 días</string>
+    <string name="delete_30_days">Más de 30 días</string>
+    <string name="delete_90_days">Más de 90 días</string>
+    <string name="delete_all">Borrar todos los PDFs</string>
+    <string name="toast_deleted">%1$d PDF%2$s eliminados.</string>
+    <string name="toast_no_pdfs">Sin PDFs guardados.</string>
+    <string name="toast_exported">PDF exportado.</string>
+    <string name="toast_export_failed">Fallo al exportar: %1$s</string>
+    <string name="toast_cache_cleared">Caché limpiada.</string>
+    <string name="toast_stats_reset">Estadísticas reiniciadas.</string>
+
+    <string name="lang_en">Inglés</string>
+    <string name="lang_es">Español</string>
+</resources>
