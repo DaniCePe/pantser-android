@@ -1,0 +1,27 @@
+# Gradle
+.gradle/
+build/
+**/build/
+
+# Local configuration
+local.properties
+
+# IDE
+.idea/
+*.iml
+
+# Keystores and signing
+*.jks
+*.keystore
+
+# Google services config (contains client identifiers)
+google-services.json
+
+# APKs and bundles
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# OS
+.DS_Store
