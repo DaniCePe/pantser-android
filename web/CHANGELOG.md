@@ -2,6 +2,11 @@
 
 Every publishing ships with its own dated, versioned entry.
 
+## [2026-10-17] [v1.2.0]
+- New app logo: option C (accent pants with double size tag), picked by Dani from 14 code-built contenders.
+- New icon set: 192px, 512px, and maskable 512px.
+- Service worker cache bumped to pantser-v4.
+
 ## [2026-10-17] [v1.1.1]
 - The "Install app" row now always shows in Settings > Utilities when running in a browser tab. If the browser offers no install prompt, it shows manual steps instead of hiding.
 - Fixed: the row previously only appeared after the browser fired its install signal, so it could be missing on first visits.
