@@ -272,6 +272,41 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 });
 
+/* ---------------- PWA install ---------------- */
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', function (e) {
+  e.preventDefault();
+  deferredPrompt = e;
+  if (typeof renderAll === 'function') renderAll();
+});
+window.addEventListener('appinstalled', function () {
+  deferredPrompt = null;
+  toast(t('install_done'));
+  if (typeof renderAll === 'function') renderAll();
+});
+function isIos() {
+  return /iphone|ipad|ipod/i.test(navigator.userAgent || '');
+}
+function isStandalone() {
+  return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+    window.navigator.standalone === true;
+}
+function installActionable() {
+  if (isStandalone()) return false;
+  return !!deferredPrompt || isIos();
+}
+async function doInstall() {
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    try {
+      const choice = await deferredPrompt.userChoice;
+      if (choice && choice.outcome === 'accepted') { deferredPrompt = null; renderAll(); }
+    } catch (e) {}
+  } else if (isIos()) {
+    showDialog({ title: t('install_app_title'), msg: t('install_ios_msg') });
+  }
+}
+
 /* ---------------- theme ---------------- */
 function applyTheme() {
   const m = Store.get('mode', 'system');
@@ -622,6 +657,9 @@ function renderSettings() {
   document.getElementById('set-util-title').textContent = t('section_utilities');
   const u = document.getElementById('set-util-list');
   u.innerHTML = '';
+  if (installActionable()) {
+    u.appendChild(setRow(t('install_app_title'), t('install_app_sub'), null, doInstall));
+  }
   const sortVal = Store.get('quick_print_sort', 'last') === 'freq' ? t('sort_freq_used') : t('sort_last_used');
   u.appendChild(setRow(t('setting_sort_format'), null, sortVal, function () {
     pickDialog(t('setting_sort_format'), [
