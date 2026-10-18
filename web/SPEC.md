@@ -470,3 +470,14 @@ view, not as a change to the strings.
 None blocking v1. Hosting is GitHub Pages. PDF generation uses pdf-lib.
 Hosting fallback is Home Cloud. alex and Nova get the web track after
 Daniel's v1 approval; no third-party changes before that.
+
+## 11. Web-only: install row (no APK counterpart)
+
+Settings > Utilities shows an "Install app" row when installing is
+actionable: the browser fired beforeinstallprompt and the app is not yet
+installed, or the device is iOS and the app is not in standalone mode.
+Tapping it triggers the browser install prompt; on iOS it shows the
+Share > Add to Home Screen steps. The installed PWA always launches at
+the manifest start_url (the app root), so it always opens on the home
+screen regardless of which view was open at install time. Strings for
+this row live in js/strings-web.js, merged over the frozen APK tables.
