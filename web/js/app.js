@@ -1,0 +1,835 @@
+'use strict';
+/* Pantser web PWA v1. 1:1 port of the Android app per web/SPEC.md.
+   Default theme only (Linear Modern + Ember Night); other styles and
+   palettes are reserved slots. No em dashes in this file. */
+
+/* ---------------- i18n ---------------- */
+function langCode() {
+  const l = Store.get('lang', 'system');
+  if (l === 'es') return 'es';
+  if (l === 'en') return 'en';
+  return (navigator.language || 'en').toLowerCase().indexOf('es') === 0 ? 'es' : 'en';
+}
+function t(key) {
+  const args = Array.prototype.slice.call(arguments, 1);
+  const table = STRINGS[langCode()] || STRINGS.en;
+  const s = (key in table) ? table[key] : (STRINGS.en[key] || key);
+  return s.replace(/%(\d+)\$([sd])/g, function (m, n, c) {
+    const v = args[Number(n) - 1];
+    return v === undefined ? m : String(v);
+  });
+}
+
+/* ---------------- persistent store (label_store) ---------------- */
+const Store = {
+  data: {},
+  load: function () {
+    try { this.data = JSON.parse(localStorage.getItem('label_store') || '{}'); }
+    catch (e) { this.data = {}; }
+  },
+  get: function (k, d) { return (k in this.data) ? this.data[k] : d; },
+  set: function (k, v) { this.data[k] = v; this.save(); },
+  save: function () {
+    try { localStorage.setItem('label_store', JSON.stringify(this.data)); } catch (e) {}
+  }
+};
+
+/* ---------------- PDF bytes in IndexedDB ---------------- */
+const IDB = {
+  db: null,
+  open: function () {
+    const self = this;
+    return new Promise(function (res, rej) {
+      try {
+        const r = indexedDB.open('pantser-db', 1);
+        r.onupgradeneeded = function () { r.result.createObjectStore('pdfs'); };
+        r.onsuccess = function () { self.db = r.result; res(); };
+        r.onerror = function () { rej(r.error); };
+      } catch (e) { rej(e); }
+    });
+  },
+  tx: function (mode, fn) {
+    const self = this;
+    return new Promise(function (res, rej) {
+      try {
+        const t = self.db.transaction('pdfs', mode);
+        const st = t.objectStore('pdfs');
+        const rq = fn(st);
+        rq.onsuccess = function () { res(rq.result); };
+        rq.onerror = function () { rej(rq.error); };
+      } catch (e) { rej(e); }
+    });
+  },
+  put: function (id, bytes) { return this.tx('readwrite', function (st) { return st.put(bytes, 'pdf:' + id); }); },
+  get: function (id) { return this.tx('readonly', function (st) { return st.get('pdf:' + id); }); },
+  del: function (id) { return this.tx('readwrite', function (st) { return st.delete('pdf:' + id); }); }
+};
+
+/* ---------------- size helpers (mirror AppStore) ---------------- */
+function normSize(s) {
+  return String(s).toLowerCase().split('|').map(function (p) { return p.replace(/\s+/g, ''); }).join('|');
+}
+function javaHash(s) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (31 * h + s.charCodeAt(i)) | 0;
+  return h;
+}
+function fileNameForSize(size) {
+  const n = normSize(size);
+  const clean = n.replace(/\|/g, '_');
+  if (clean.length > 50) return 'size_adv_' + javaHash(n) + '.pdf';
+  return 'size_' + clean + '.pdf';
+}
+function layoutColsRows() {
+  const parts = Store.get('layout', '4x15').split('x');
+  return [parseInt(parts[0], 10) || 4, parseInt(parts[1], 10) || 15];
+}
+
+/* ---------------- PDF generation (mirror PdfGenerator) ---------------- */
+async function generatePdf(sizeTexts) {
+  const cr = layoutColsRows();
+  const cols = cr[0], rows = cr[1];
+  const { PDFDocument, StandardFonts, rgb } = PDFLib;
+  const doc = await PDFDocument.create();
+  const page = doc.addPage([612, 792]);
+  const font = await doc.embedFont(StandardFonts.HelveticaBold);
+  const FS = 24;
+  const L = 21.6, T = 39.6, R = 21.6, B = 33.84;
+  const uw = 612 - L - R, uh = 792 - T - B;
+  const cw = uw / cols, ch = uh / rows;
+  /* Helvetica Bold metrics: ascent 718, descent -207 per 1000 upm.
+     Baseline offset -(ascent + descent) / 2, same formula as Android. */
+  const baseOff = -((718 - 207) / 1000 * FS) / 2;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const txt = (c < sizeTexts.length) ? sizeTexts[c] : (sizeTexts[0] || '');
+      if (!txt) continue;
+      const w = font.widthOfTextAtSize(txt, FS);
+      const cx = L + c * cw + cw / 2;
+      const cyTop = T + r * ch + ch / 2;
+      page.drawText(txt, {
+        x: cx - w / 2,
+        y: 792 - cyTop + baseOff,
+        size: FS, font: font, color: rgb(0, 0, 0)
+      });
+    }
+  }
+  const bytes = await doc.save();
+  return bytes;
+}
+
+/* ---------------- createLabel (mirror MainActivity.createLabel) ---------------- */
+async function createLabel(rawSize) {
+  const size = (rawSize || '').trim();
+  if (!size) { toast(t('err_empty_size')); return; }
+  try {
+    const n = normSize(size);
+    const records = Store.get('records', []);
+    const existing = records.find(function (r) { return normSize(r.size) === n; });
+    if (existing) {
+      const bytes = await IDB.get(existing.id);
+      if (bytes && bytes.length > 0) { await printRecord(existing, bytes); goHome(); return; }
+    }
+    const id = Date.now();
+    const sizes = size.split('|').map(function (s) { return s.trim(); });
+    const bytes = await generatePdf(sizes);
+    const rec = {
+      id: id, size: size, file: fileNameForSize(size),
+      created: id, prints: 0, lastPrinted: 0, bytesLen: bytes.length
+    };
+    await IDB.put(id, bytes);
+    records.unshift(rec);
+    Store.set('records', records);
+    const uq = Store.get('unique_sizes', []);
+    if (uq.indexOf(n) < 0) { uq.push(n); Store.set('unique_sizes', uq); }
+    await printRecord(rec, bytes);
+  } catch (e) {
+    toast(t('err_create_fail', (e && e.message) || e));
+  }
+  goHome();
+}
+
+async function printRecord(rec, bytes) {
+  rec.prints = (rec.prints || 0) + 1;
+  rec.lastPrinted = Date.now();
+  Store.set('records', Store.get('records', []));
+  Store.set('total_printed', Store.get('total_printed', 0) + 1);
+  renderAll();
+  /* Web mapping of the Android print dialog: open the PDF in a hidden
+     frame and invoke the browser print dialog. */
+  const blob = new Blob([bytes], { type: 'application/pdf' });
+  const url = URL.createObjectURL(blob);
+  try {
+    const frame = document.getElementById('print-frame');
+    await new Promise(function (res, rej) {
+      const to = setTimeout(function () { rej(new Error('print-timeout')); }, 15000);
+      frame.onload = function () { clearTimeout(to); res(); };
+      frame.src = url;
+    });
+    frame.contentWindow.focus();
+    frame.contentWindow.print();
+  } catch (e) {
+    window.open(url, '_blank');
+  }
+  setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
+}
+
+/* ---------------- startup: dedupe + cleanup (mirror AppStore) ---------------- */
+async function consolidate(records) {
+  const map = new Map();
+  for (const r of records) {
+    const n = normSize(r.size);
+    if (!map.has(n)) { map.set(n, r); continue; }
+    const k = map.get(n);
+    const winner = ((r.prints || 0) > (k.prints || 0)) ? r : k;
+    const loser = (winner === r) ? k : r;
+    winner.prints = (winner.prints || 0) + (loser.prints || 0);
+    winner.lastPrinted = Math.max(winner.lastPrinted || 0, loser.lastPrinted || 0);
+    winner.file = fileNameForSize(winner.size);
+    try { await IDB.del(loser.id); } catch (e) {}
+    map.set(n, winner);
+  }
+  return Array.from(map.values());
+}
+
+async function cleanupOld(days) {
+  const cutoff = Date.now() - days * 86400000;
+  const records = Store.get('records', []);
+  const kept = [];
+  let removed = 0;
+  for (const r of records) {
+    const ts = r.lastPrinted || r.created;
+    if (ts < cutoff) {
+      try { await IDB.del(r.id); } catch (e) {}
+      removed++;
+    } else kept.push(r);
+  }
+  Store.set('records', kept);
+  return removed;
+}
+
+async function startup() {
+  Store.load();
+  try { await IDB.open(); } catch (e) { /* storage unavailable: app still runs */ }
+  let records = await consolidate(Store.get('records', []));
+  Store.set('records', records);
+  if (Store.get('automatic_cleanup', 'true') === 'true') await cleanupOld(7);
+}
+
+/* ---------------- toast + dialog ---------------- */
+let toastTimer = null;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function () { el.classList.add('hidden'); }, 2600);
+}
+
+function closeDialog() {
+  document.getElementById('dlg-backdrop').classList.add('hidden');
+}
+function showDialog(opts) {
+  /* opts: {title, msg, options:[{label, sub, checked, later, onPick}], buttons:[{label, primary, onClick}]} */
+  const bd = document.getElementById('dlg-backdrop');
+  document.getElementById('dlg-title').textContent = opts.title || '';
+  const msgEl = document.getElementById('dlg-msg');
+  msgEl.textContent = opts.msg || '';
+  msgEl.style.display = opts.msg ? '' : 'none';
+  const list = document.getElementById('dlg-list');
+  list.innerHTML = '';
+  (opts.options || []).forEach(function (o) {
+    const b = document.createElement('button');
+    b.className = 'opt' + (o.later ? ' later' : '');
+    const left = document.createElement('span');
+    left.textContent = o.label;
+    if (o.sub) {
+      const s = document.createElement('span');
+      s.className = 'sub2'; s.textContent = o.sub; left.appendChild(s);
+    }
+    b.appendChild(left);
+    const right = document.createElement('span');
+    if (o.later) { right.className = 'tag'; right.textContent = ''; }
+    else if (o.checked) { right.className = 'chk'; right.textContent = '\u2713'; }
+    b.appendChild(right);
+    if (!o.later) b.addEventListener('click', function () { closeDialog(); o.onPick(); });
+    list.appendChild(b);
+  });
+  const btns = document.getElementById('dlg-btns');
+  btns.innerHTML = '';
+  (opts.buttons || [{ label: t('btn_cancel') }]).forEach(function (bb) {
+    const b = document.createElement('button');
+    b.textContent = bb.label;
+    if (bb.primary) b.className = 'go';
+    b.addEventListener('click', function () { closeDialog(); if (bb.onClick) bb.onClick(); });
+    btns.appendChild(b);
+  });
+  bd.classList.remove('hidden');
+}
+document.addEventListener('DOMContentLoaded', function () {
+  document.getElementById('dlg-backdrop').addEventListener('click', function (e) {
+    if (e.target.id === 'dlg-backdrop') closeDialog();
+  });
+});
+
+/* ---------------- theme ---------------- */
+function applyTheme() {
+  const m = Store.get('mode', 'system');
+  let dark;
+  if (m === 'dark') dark = true;
+  else if (m === 'light') dark = false;
+  else dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  const mc = document.querySelector('meta[name="theme-color"]');
+  if (mc) mc.setAttribute('content', dark ? '#060404' : '#FCF5F2');
+}
+
+/* ---------------- navigation ---------------- */
+let currentView = 'home';
+function goHome() { showView('home'); }
+
+function showView(v, push) {
+  currentView = v;
+  const pager = document.getElementById('pager');
+  const vs = document.getElementById('view-settings');
+  const vi = document.getElementById('view-info');
+  vs.classList.add('hidden'); vi.classList.add('hidden');
+  document.getElementById('dock').style.display = '';
+  if (v === 'insights') pager.style.transform = 'translateX(-100%)';
+  else pager.style.transform = 'translateX(0)';
+  if (v === 'settings') { vs.classList.remove('hidden'); document.getElementById('dock').style.display = 'none'; }
+  if (v === 'info') { vi.classList.remove('hidden'); document.getElementById('dock').style.display = 'none'; }
+  document.getElementById('tab-create').classList.toggle('on', v === 'home');
+  document.getElementById('tab-insights').classList.toggle('on', v === 'insights');
+  if (push !== false) { try { history.pushState({ v: v }, ''); } catch (e) {} }
+}
+
+let exitArmedAt = 0;
+function tryClose() {
+  window.close();
+  /* If the browser refuses (tab not opened by script), nothing else
+     happens. Recorded in NOT-PORTED.md. */
+}
+function onBackPressed() {
+  if (currentView === 'settings' || currentView === 'info') { showView('home'); return; }
+  const b = Store.get('back_behavior', 'ask');
+  if (b === 'ask') {
+    showDialog({
+      title: t('dialog_exit_title'), msg: t('dialog_exit_msg'),
+      buttons: [{ label: t('btn_cancel') }, { label: t('btn_exit'), primary: true, onClick: tryClose }]
+    });
+  } else if (b === 'one_press') { tryClose(); }
+  else if (b === 'two_press') {
+    const now = Date.now();
+    if (now - exitArmedAt < 2000) { exitArmedAt = 0; tryClose(); }
+    else { exitArmedAt = now; toast(t('toast_press_again_exit')); try { history.pushState({ v: currentView }, ''); } catch (e) {} }
+  } else {
+    try { history.pushState({ v: currentView }, ''); } catch (e) {}
+  }
+}
+
+/* small swipe pager with dots */
+function makePager(pagerEl, dotsEl) {
+  const pages = pagerEl.children.length;
+  let idx = 0, sx = 0;
+  function draw() {
+    pagerEl.style.transform = 'translateX(-' + (idx * 100) + '%)';
+    if (dotsEl) {
+      dotsEl.innerHTML = '';
+      for (let i = 0; i < pages; i++) {
+        const d = document.createElement('span');
+        if (i === idx) d.className = 'on';
+        dotsEl.appendChild(d);
+      }
+    }
+  }
+  pagerEl.addEventListener('touchstart', function (e) { sx = e.touches[0].clientX; }, { passive: true });
+  pagerEl.addEventListener('touchend', function (e) {
+    const dx = e.changedTouches[0].clientX - sx;
+    if (dx < -60 && idx < pages - 1) idx++;
+    else if (dx > 60 && idx > 0) idx--;
+    draw();
+  }, { passive: true });
+  draw();
+  return { go: function (i) { idx = Math.max(0, Math.min(pages - 1, i)); draw(); } };
+}
+
+/* ---------------- static strings ---------------- */
+function applyStrings() {
+  document.getElementById('topbar-title').textContent = t('app_name');
+  document.getElementById('tab-create').textContent = t('generate_pdf');
+  document.getElementById('tab-insights').textContent = t('insights_title');
+  document.title = t('app_name');
+  document.documentElement.lang = langCode();
+}
+
+/* ---------------- home ---------------- */
+let advMem = [];
+let classicMem = '';
+
+function renderHome() {
+  document.getElementById('home-prompt').textContent = t('prompt_what_size');
+  document.getElementById('home-layout').textContent = t('using_layout', Store.get('layout', '4x15'));
+  document.getElementById('home-privacy').textContent = t('privacy_note');
+  const wrap = document.getElementById('home-inputs');
+  wrap.innerHTML = '';
+  const advanced = Store.get('advanced_mode', 'false') === 'true';
+  const cols = layoutColsRows()[0];
+  const jumpBtn = document.getElementById('btn-jump');
+
+  if (!advanced) {
+    wrap.classList.remove('row');
+    const inp = document.createElement('input');
+    inp.type = 'text'; inp.id = 'classic-input';
+    inp.placeholder = t('hint_example'); inp.value = classicMem;
+    inp.setAttribute('aria-label', t('prompt_what_size'));
+    inp.addEventListener('input', function () { classicMem = inp.value; });
+    inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') doCreateClassic(); });
+    wrap.appendChild(inp);
+    jumpBtn.classList.add('hidden');
+  } else {
+    wrap.classList.add('row');
+    while (advMem.length < cols) advMem.push('');
+    advMem.length = cols;
+    const inputs = [];
+    for (let i = 0; i < cols; i++) {
+      const inp = document.createElement('input');
+      inp.type = 'text'; inp.value = advMem[i] || '';
+      inp.placeholder = t('label_column_x', i + 1);
+      inp.setAttribute('aria-label', t('label_column_x', i + 1));
+      (function (index, el) {
+        el.addEventListener('input', function () { advMem[index] = el.value; refreshAsterisks(); });
+        el.addEventListener('keydown', function (e) {
+          if (e.key === 'Backspace' && el.value === '' && index > 0) {
+            e.preventDefault();
+            const prev = inputs[index - 1];
+            prev.focus();
+            prev.setSelectionRange(prev.value.length, prev.value.length);
+          }
+          if (e.key === 'Enter') doCreateAdvanced();
+        });
+      })(i, inp);
+      inputs.push(inp);
+      wrap.appendChild(inp);
+    }
+    const firstSkipped = function () {
+      for (let i = 0; i < cols; i++) {
+        if (advMem[i].trim() !== '') continue;
+        for (let j = i + 1; j < cols; j++) if (advMem[j].trim() !== '') return i;
+      }
+      return -1;
+    };
+    const refreshAsterisks = function () {
+      let skipped = false;
+      for (let i = 0; i < cols; i++) {
+        const blank = advMem[i].trim() === '';
+        let laterFilled = false;
+        for (let j = i + 1; j < cols; j++) if (advMem[j].trim() !== '') laterFilled = true;
+        inputs[i].placeholder = t('label_column_x', i + 1) + ((blank && laterFilled) ? ' *' : '');
+        if (blank && laterFilled) skipped = true;
+      }
+      jumpBtn.classList.toggle('hidden', !skipped);
+    };
+    window.__refreshAsterisks = refreshAsterisks;
+    jumpBtn.textContent = t('jump_to_previous_unsaved');
+    jumpBtn.onclick = function () {
+      const i = firstSkipped();
+      if (i >= 0) inputs[i].focus();
+    };
+    refreshAsterisks();
+  }
+
+  const cb = document.getElementById('btn-create');
+  cb.textContent = t('create_label_btn');
+  cb.setAttribute('aria-label', t('generate_pdf'));
+  cb.onclick = function () { advanced ? doCreateAdvanced() : doCreateClassic(); };
+  renderTray();
+}
+
+function doCreateClassic() {
+  const el = document.getElementById('classic-input');
+  createLabel(el ? el.value : classicMem);
+}
+function doCreateAdvanced() {
+  const cols = layoutColsRows()[0];
+  const vals = [];
+  for (let i = 0; i < cols; i++) vals.push((advMem[i] || '').trim());
+  if (vals.some(function (v) { return v === ''; })) { toast(t('err_invalid_column')); return; }
+  createLabel(vals.join('|'));
+}
+
+/* ---------------- quick-print tray ---------------- */
+function renderTray() {
+  document.getElementById('tray-title').textContent = t('quick_print_title');
+  const list = document.getElementById('tray-list');
+  list.innerHTML = '';
+  const seen = new Set();
+  let recs = Store.get('records', []).filter(function (r) {
+    if (!(r.prints > 0)) return false;
+    const n = normSize(r.size);
+    if (seen.has(n)) return false;
+    seen.add(n);
+    return true;
+  });
+  const sort = Store.get('quick_print_sort', 'last');
+  recs.sort(function (a, b) {
+    return sort === 'freq' ? ((b.prints || 0) - (a.prints || 0)) : ((b.lastPrinted || 0) - (a.lastPrinted || 0));
+  });
+  recs = recs.slice(0, 8);
+  if (!recs.length) {
+    const e = document.createElement('div');
+    e.className = 'empty'; e.textContent = t('no_recent_labels');
+    list.appendChild(e);
+    return;
+  }
+  recs.forEach(function (r) {
+    const row = document.createElement('div');
+    row.className = 'tray-row';
+    const name = document.createElement('span');
+    name.textContent = r.size.split('|').join(' | ');
+    const n = document.createElement('span');
+    n.className = 'n'; n.textContent = t('print_count_text', r.prints || 0);
+    row.appendChild(name); row.appendChild(n);
+    row.addEventListener('click', function () { createLabel(r.size); });
+    list.appendChild(row);
+  });
+}
+
+/* ---------------- insights ---------------- */
+function fmtBytes(b) {
+  if (b < 1024) return b + ' B';
+  if (b < 1048576) return Math.floor(b / 1024) + ' KB';
+  return Math.floor(b / 1048576) + ' MB';
+}
+function renderInsights() {
+  document.getElementById('ins-title').textContent = t('insights_title');
+  document.getElementById('ins-sub').textContent = t('insights_sub');
+  const cards = document.getElementById('ins-cards');
+  cards.innerHTML = '';
+  const records = Store.get('records', []);
+  const stats = [
+    [t('stat_total_printed'), t('stat_total_printed_desc'), Store.get('total_printed', 0)],
+    [t('stat_unique_pdfs'), t('stat_unique_pdfs_desc'), Store.get('unique_sizes', []).length],
+    [t('stat_saved_pdfs'), t('stat_saved_pdfs_desc'), records.length]
+  ];
+  stats.forEach(function (s) {
+    const c = document.createElement('div');
+    c.className = 'card';
+    const k = document.createElement('div'); k.className = 'k'; k.textContent = s[0];
+    const d = document.createElement('div'); d.className = 'd'; d.textContent = s[1];
+    const v = document.createElement('div'); v.className = 'v'; v.textContent = s[2];
+    c.appendChild(k); c.appendChild(d); c.appendChild(v);
+    cards.appendChild(c);
+  });
+  document.getElementById('ins-most').textContent = t('most_printed_title');
+  const list = document.getElementById('ins-list');
+  list.innerHTML = '';
+  const groups = {};
+  records.forEach(function (r) {
+    groups[r.size] = (groups[r.size] || 0) + (r.prints || 0);
+  });
+  const top = Object.keys(groups).sort(function (a, b) { return groups[b] - groups[a]; }).slice(0, 5);
+  if (!top.length) {
+    const e = document.createElement('div');
+    e.className = 'empty'; e.textContent = t('no_history');
+    list.appendChild(e);
+  } else {
+    top.forEach(function (size, i) {
+      const row = document.createElement('div');
+      row.className = 'hist-row';
+      row.textContent = t('history_item_format', i + 1, size.split('|').join(' | '), groups[size]);
+      list.appendChild(row);
+    });
+  }
+  const total = records.reduce(function (a, r) { return a + (r.bytesLen || 0); }, 0);
+  document.getElementById('ins-storage').textContent = t('storage_used', fmtBytes(total));
+}
+
+/* ---------------- info ---------------- */
+function renderInfo() {
+  const set = function (id, key) { document.getElementById(id).textContent = t(key); };
+  set('info-t1', 'manual_title'); set('info-b1a', 'manual_welcome');
+  set('info-t2', 'manual_concept_title'); set('info-b2', 'manual_concept_body');
+  set('info-t3', 'manual_steps_title'); set('info-b3', 'manual_steps_body');
+  set('info-t4', 'manual_settings_title'); set('info-b4', 'manual_settings_body');
+}
+
+/* ---------------- settings ---------------- */
+function setRow(title, sub, valueText, onClick) {
+  const b = document.createElement('button');
+  b.className = 'set-row';
+  const left = document.createElement('span');
+  const tt = document.createElement('span'); tt.className = 't'; tt.textContent = title;
+  left.appendChild(tt);
+  if (sub) { const s = document.createElement('span'); s.className = 's'; s.textContent = sub; left.appendChild(s); }
+  b.appendChild(left);
+  if (valueText !== undefined && valueText !== null) {
+    const v = document.createElement('span'); v.className = 'v'; v.textContent = valueText;
+    b.appendChild(v);
+  }
+  if (onClick) b.addEventListener('click', onClick);
+  return b;
+}
+function switchRow(title, sub, checked, onToggle) {
+  const b = document.createElement('div');
+  b.className = 'set-row'; b.style.cursor = 'default';
+  const left = document.createElement('span');
+  const tt = document.createElement('span'); tt.className = 't'; tt.textContent = title;
+  left.appendChild(tt);
+  const s = document.createElement('span'); s.className = 's'; s.textContent = sub; left.appendChild(s);
+  b.appendChild(left);
+  const sw = document.createElement('label'); sw.className = 'switch';
+  const inp = document.createElement('input'); inp.type = 'checkbox'; inp.checked = checked;
+  const tr = document.createElement('span'); tr.className = 'tr';
+  sw.appendChild(inp); sw.appendChild(tr);
+  inp.addEventListener('change', function () { onToggle(inp.checked); });
+  b.appendChild(sw);
+  return b;
+}
+function pickDialog(title, items, current, onPick) {
+  showDialog({
+    title: title,
+    options: items.map(function (it) {
+      return {
+        label: it.label, sub: it.sub, checked: it.key === current,
+        later: !!it.later,
+        onPick: function () { onPick(it.key); }
+      };
+    })
+  });
+}
+
+const PALETTES = [
+  { key: 'EMBER_NIGHT', name: 'Crimson Dusk' },
+  { key: 'ROYAL_GRAPE', name: 'Midnight Purple', later: true },
+  { key: 'SPRING_PASTEL', name: 'Garden Meadow', later: true },
+  { key: 'LAVENDER_CREAM', name: 'Petal Soft', later: true },
+  { key: 'BAUHAUS', name: 'Bold Primary', later: true },
+  { key: 'TERMINAL', name: 'Hacker Green', later: true },
+  { key: 'DOPAMINE', name: 'Neon Pop', later: true }
+];
+const STYLES = [
+  { key: 'modern', tkey: 'style_modern' },
+  { key: 'retro', tkey: 'style_retro', later: true },
+  { key: 'bauhaus', tkey: 'style_bauhaus', later: true },
+  { key: 'terminal', tkey: 'style_terminal', later: true },
+  { key: 'dopamine', tkey: 'style_dopamine', later: true }
+];
+const LAYOUTS = ['4x15', '3x10', '4x20', '2x10'];
+
+function renderSettings() {
+  /* utilities */
+  document.getElementById('set-util-title').textContent = t('section_utilities');
+  const u = document.getElementById('set-util-list');
+  u.innerHTML = '';
+  const sortVal = Store.get('quick_print_sort', 'last') === 'freq' ? t('sort_freq_used') : t('sort_last_used');
+  u.appendChild(setRow(t('setting_sort_format'), null, sortVal, function () {
+    pickDialog(t('setting_sort_format'), [
+      { key: 'last', label: t('sort_last_used') },
+      { key: 'freq', label: t('sort_freq_used') }
+    ], Store.get('quick_print_sort', 'last'), function (k) { Store.set('quick_print_sort', k); renderAll(); });
+  }));
+  const bb = Store.get('back_behavior', 'ask');
+  const bbLabel = { ask: t('back_behavior_ask'), one_press: t('back_behavior_one_press'), two_press: t('back_behavior_two_press'), disable: t('back_behavior_disable') }[bb];
+  u.appendChild(setRow(t('setting_back_behavior'), null, bbLabel, function () {
+    pickDialog(t('setting_back_behavior'), [
+      { key: 'ask', label: t('back_behavior_ask') },
+      { key: 'one_press', label: t('back_behavior_one_press') },
+      { key: 'two_press', label: t('back_behavior_two_press') },
+      { key: 'disable', label: t('back_behavior_disable') }
+    ], bb, function (k) { Store.set('back_behavior', k); renderAll(); });
+  }));
+  const lg = Store.get('lang', 'system');
+  const lgLabel = lg === 'en' ? t('lang_en') : lg === 'es' ? t('lang_es') : t('mode_system');
+  u.appendChild(setRow(t('setting_language'), null, lgLabel, function () {
+    pickDialog(t('setting_language'), [
+      { key: 'system', label: t('mode_system') },
+      { key: 'en', label: t('lang_en') },
+      { key: 'es', label: t('lang_es') }
+    ], lg, function (k) { Store.set('lang', k); applyStrings(); renderAll(); });
+  }));
+  const adv = Store.get('advanced_mode', 'false') === 'true';
+  const cols = layoutColsRows()[0];
+  const pmLabel = adv ? t('print_mode_advanced', cols, cols) : t('print_mode_classic');
+  u.appendChild(setRow(t('setting_print_mode'), null, pmLabel, function () {
+    pickDialog(t('setting_print_mode'), [
+      { key: 'false', label: t('print_mode_classic'), sub: t('print_mode_classic_sub') },
+      { key: 'true', label: t('print_mode_advanced'), sub: t('print_mode_advanced_sub', cols, cols) }
+    ], Store.get('advanced_mode', 'false'), function (k) { Store.set('advanced_mode', k); renderAll(); });
+  }));
+  const layout = Store.get('layout', '4x15');
+  u.appendChild(setRow(t('setting_layout'), null, layout.replace('x', ' x '), function () {
+    pickDialog(t('setting_layout'), LAYOUTS.map(function (l) {
+      return { key: l, label: l.replace('x', ' x ') };
+    }), layout, function (k) { Store.set('layout', k); renderAll(); });
+  }));
+  u.appendChild(setRow(t('setting_export'), t('setting_export_sub'), null, showExportDialog));
+
+  /* storage */
+  document.getElementById('set-storage-title').textContent = t('section_storage');
+  const s = document.getElementById('set-storage-list');
+  s.innerHTML = '';
+  s.appendChild(switchRow(t('setting_cleanup'), t('setting_cleanup_sub'),
+    Store.get('automatic_cleanup', 'true') === 'true',
+    async function (on) {
+      Store.set('automatic_cleanup', on ? 'true' : 'false');
+      if (on) await cleanupOld(7);
+      renderAll();
+    }));
+  s.appendChild(setRow(t('setting_delete_cache'), t('setting_delete_cache_sub'), null, function () {
+    /* Web has no temp files; see NOT-PORTED.md. */
+    toast(t('toast_cache_cleared'));
+  }));
+  s.appendChild(setRow(t('setting_delete_old'), t('setting_delete_old_sub'), null, function () {
+    pickDialog(t('setting_delete_old'), [
+      { key: '7', label: t('delete_7_days') },
+      { key: '30', label: t('delete_30_days') },
+      { key: '90', label: t('delete_90_days') },
+      { key: 'all', label: t('delete_all') }
+    ], null, async function (k) {
+      if (k === 'all') {
+        const recs = Store.get('records', []);
+        for (const r of recs) { try { await IDB.del(r.id); } catch (e) {} }
+        Store.set('records', recs.length ? [] : []);
+        toast(t('toast_deleted', recs.length, recs.length === 1 ? '' : 's'));
+      } else {
+        const n = await cleanupOld(parseInt(k, 10));
+        toast(t('toast_deleted', n, n === 1 ? '' : 's'));
+      }
+      renderAll();
+    });
+  }));
+  s.appendChild(setRow(t('setting_reset'), t('setting_reset_sub'), null, function () {
+    showDialog({
+      title: t('dialog_reset_title'), msg: t('dialog_reset_msg'),
+      buttons: [
+        { label: t('btn_cancel') },
+        { label: t('btn_reset'), primary: true, onClick: function () {
+          Store.set('total_printed', 0);
+          Store.set('unique_sizes', []);
+          const recs = Store.get('records', []);
+          recs.forEach(function (r) { r.prints = 0; r.lastPrinted = 0; });
+          Store.set('records', recs);
+          toast(t('toast_stats_reset'));
+          renderAll();
+        } }
+      ]
+    });
+  }));
+
+  /* appearance */
+  document.getElementById('set-appear-title').textContent = t('section_appearance');
+  const a = document.getElementById('set-appear-list');
+  a.innerHTML = '';
+  const mode = Store.get('mode', 'system');
+  const modeLabel = mode === 'light' ? t('mode_light') : mode === 'dark' ? t('mode_dark') : t('mode_system');
+  a.appendChild(setRow(t('setting_theme_mode'), null, modeLabel, function () {
+    pickDialog(t('setting_theme_mode'), [
+      { key: 'system', label: t('mode_system') },
+      { key: 'light', label: t('mode_light') },
+      { key: 'dark', label: t('mode_dark') }
+    ], mode, function (k) { Store.set('mode', k); applyTheme(); renderAll(); });
+  }));
+  const pal = PALETTES.find(function (p) { return p.key === Store.get('palette', 'EMBER_NIGHT'); }) || PALETTES[0];
+  a.appendChild(setRow(t('setting_theme_palette'), null, pal.name, function () {
+    pickDialog(t('setting_theme_palette'), PALETTES.map(function (p) {
+      return { key: p.key, label: p.name, later: p.later };
+    }), Store.get('palette', 'EMBER_NIGHT'), function () {});
+  }));
+  const sty = STYLES.find(function (x) { return x.key === Store.get('ui_style', 'modern'); }) || STYLES[0];
+  a.appendChild(setRow(t('setting_theme_style'), null, t(sty.tkey), function () {
+    pickDialog(t('setting_theme_style'), STYLES.map(function (x) {
+      return { key: x.key, label: t(x.tkey), later: x.later };
+    }), Store.get('ui_style', 'modern'), function () {});
+  }));
+}
+
+function showExportDialog() {
+  const records = Store.get('records', []);
+  if (!records.length) { toast(t('toast_no_pdfs')); return; }
+  showDialog({
+    title: t('setting_export'),
+    options: records.map(function (r) {
+      const d = new Date(r.created).toLocaleDateString(langCode() === 'es' ? 'es' : 'en');
+      return {
+        label: r.size.split('|').join(' | ') + ' x ' + d,
+        onPick: function () { exportPdf(r); }
+      };
+    })
+  });
+}
+
+async function exportPdf(rec) {
+  try {
+    const bytes = await IDB.get(rec.id);
+    if (!bytes || !bytes.length) { toast(t('toast_export_failed', 'empty')); return; }
+    const blob = new Blob([bytes], { type: 'application/pdf' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = rec.file || fileNameForSize(rec.size);
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 60000);
+    toast(t('toast_exported'));
+  } catch (e) {
+    toast(t('toast_export_failed', (e && e.message) || e));
+  }
+}
+
+/* ---------------- render all + init ---------------- */
+function renderAll() {
+  applyStrings();
+  renderHome();
+  renderInsights();
+  renderSettings();
+  renderInfo();
+}
+
+async function init() {
+  await startup();
+  applyTheme();
+  if (window.matchMedia) {
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () {
+      if (Store.get('mode', 'system') === 'system') applyTheme();
+    });
+  }
+  renderAll();
+  makePager(document.getElementById('pager'), null);
+  makePager(document.getElementById('settings-pager'), document.getElementById('settings-dots'));
+  makePager(document.getElementById('info-pager'), document.getElementById('info-dots'));
+
+  document.getElementById('tab-create').addEventListener('click', function () {
+    if (currentView === 'home') goHome(); else showView('home');
+  });
+  document.getElementById('tab-insights').addEventListener('click', function () {
+    if (currentView === 'insights') goHome(); else showView('insights');
+  });
+  document.getElementById('btn-settings').addEventListener('click', function () {
+    if (currentView === 'settings') goHome(); else showView('settings');
+  });
+  document.getElementById('btn-info').addEventListener('click', function () {
+    if (currentView === 'info') goHome(); else showView('info');
+  });
+
+  /* swipe between home and insights */
+  const pager = document.getElementById('pager');
+  let sx = 0;
+  pager.addEventListener('touchstart', function (e) { sx = e.touches[0].clientX; }, { passive: true });
+  pager.addEventListener('touchend', function (e) {
+    if (currentView !== 'home' && currentView !== 'insights') return;
+    const dx = e.changedTouches[0].clientX - sx;
+    if (dx < -60 && currentView === 'home') showView('insights');
+    else if (dx > 60 && currentView === 'insights') showView('home');
+  }, { passive: true });
+
+  try { history.replaceState({ v: 'home' }, ''); } catch (e) {}
+  window.addEventListener('popstate', function () { onBackPressed(); });
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('service-worker.js').catch(function () {});
+  }
+  showView('home', false);
+}
+
+document.addEventListener('DOMContentLoaded', init);
