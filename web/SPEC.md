@@ -468,7 +468,7 @@ view, not as a change to the strings.
 
 None blocking v1. Hosting is GitHub Pages. PDF generation uses pdf-lib.
 Hosting fallback is Home Cloud. alex and Nova get the web track after
-Daniel's v1 approval; no third-party changes before that.
+v1 approval; no third-party changes before that.
 
 ## 11. Web-only: install row (no APK counterpart)
 
