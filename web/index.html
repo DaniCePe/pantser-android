@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#160D0A">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Pantser</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<div id="app">
+  <header id="topbar">
+    <button id="btn-settings" class="icon-btn" aria-label="settings">&#9881;</button>
+    <div id="topbar-title">Pantser</div>
+    <button id="btn-info" class="icon-btn" aria-label="info">&#9432;</button>
+  </header>
+
+  <main id="stage">
+    <div id="pager" class="pager">
+      <section id="view-home" class="view page">
+        <div class="prompt" id="home-prompt"></div>
+        <div class="layout-line" id="home-layout"></div>
+        <div class="privacy" id="home-privacy"></div>
+        <div id="home-inputs"></div>
+        <button id="btn-jump" class="link-btn hidden"></button>
+        <button id="btn-create" class="primary"></button>
+        <div class="tray">
+          <div class="tray-title" id="tray-title"></div>
+          <div id="tray-list"></div>
+        </div>
+      </section>
+      <section id="view-insights" class="view page">
+        <h2 id="ins-title"></h2>
+        <p class="sub" id="ins-sub"></p>
+        <div class="cards" id="ins-cards"></div>
+        <h3 id="ins-most"></h3>
+        <div id="ins-list"></div>
+        <div class="storage" id="ins-storage"></div>
+      </section>
+    </div>
+
+    <section id="view-settings" class="view overlay hidden">
+      <div class="pager" id="settings-pager">
+        <div class="page"><h2 class="sec-title" id="set-util-title"></h2><div id="set-util-list" class="set-list"></div></div>
+        <div class="page"><h2 class="sec-title" id="set-storage-title"></h2><div id="set-storage-list" class="set-list"></div></div>
+        <div class="page"><h2 class="sec-title" id="set-appear-title"></h2><div id="set-appear-list" class="set-list"></div></div>
+      </div>
+      <div class="dots" id="settings-dots"></div>
+    </section>
+
+    <section id="view-info" class="view overlay hidden">
+      <div class="pager" id="info-pager">
+        <div class="page"><h2 id="info-t1"></h2><p id="info-b1a"></p><h3 id="info-t2"></h3><p id="info-b2"></p></div>
+        <div class="page"><h2 id="info-t3"></h2><p id="info-b3"></p></div>
+        <div class="page"><h2 id="info-t4"></h2><p id="info-b4"></p></div>
+      </div>
+      <div class="dots" id="info-dots"></div>
+    </section>
+  </main>
+
+  <nav id="dock">
+    <button id="tab-create" class="tab"></button>
+    <button id="tab-insights" class="tab"></button>
+  </nav>
+</div>
+
+<iframe id="print-frame" class="hidden" title="print"></iframe>
+<div id="toast" class="hidden"></div>
+<div id="dlg-backdrop" class="hidden">
+  <div id="dlg">
+    <div id="dlg-title"></div>
+    <div id="dlg-msg"></div>
+    <div id="dlg-list"></div>
+    <div id="dlg-btns"></div>
+  </div>
+</div>
+
+<script src="js/pdf-lib.min.js"></script>
+<script src="js/strings.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
