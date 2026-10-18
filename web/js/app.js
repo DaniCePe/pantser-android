@@ -292,8 +292,9 @@ function isStandalone() {
     window.navigator.standalone === true;
 }
 function installActionable() {
-  if (isStandalone()) return false;
-  return !!deferredPrompt || isIos();
+  /* Always offer it in the browser. The installed app opens straight
+     into the app, where the row hides itself. */
+  return !isStandalone();
 }
 async function doInstall() {
   if (deferredPrompt) {
@@ -304,6 +305,8 @@ async function doInstall() {
     } catch (e) {}
   } else if (isIos()) {
     showDialog({ title: t('install_app_title'), msg: t('install_ios_msg') });
+  } else {
+    showDialog({ title: t('install_app_title'), msg: t('install_manual_msg') });
   }
 }
 
