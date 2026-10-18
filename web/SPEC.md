@@ -4,8 +4,7 @@ Source of truth for the web track of the Pantser repo. Extracted from the
 Android source at `android/` on 2026-10-17. The APK and the web build must
 never drift from this document. 1:1 behavior parity with the APK is the bar.
 Verification: every flow below is run against the web build and the resulting
-PDFs are compared side by side with APK output. Nothing is called done until
-Dani approves the actual deliverable ("I approve this").
+PDFs are compared side by side with APK output. Nothing is called done until the actual deliverable is approved ("I approve this").
 
 Web scope for v1: the default theme only (modern style + Ember Night palette).
 The other 4 styles and 6 palettes slot in later; CSS token slots are reserved
