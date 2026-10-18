@@ -4,11 +4,13 @@ Object.assign(STRINGS.en, {
   install_app_title: "Install app",
   install_app_sub: "Add Pantser to your home screen",
   install_ios_msg: "On iPhone: open this page in Safari, tap Share, then Add to Home Screen.",
+  install_manual_msg: "Open your browser menu and choose Install app or Add to Home screen.",
   install_done: "Pantser is installed."
 });
 Object.assign(STRINGS.es, {
   install_app_title: "Instalar app",
   install_app_sub: "Agrega Pantser a tu pantalla de inicio",
   install_ios_msg: "En iPhone: abre esta página en Safari, toca Compartir y luego Agrega a pantalla de inicio.",
+  install_manual_msg: "Abre el menú de tu navegador y elige Instalar app o Agrega a pantalla de inicio.",
   install_done: "Pantser está instalado."
 });
