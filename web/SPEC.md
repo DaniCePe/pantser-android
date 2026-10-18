@@ -473,11 +473,11 @@ Daniel's v1 approval; no third-party changes before that.
 
 ## 11. Web-only: install row (no APK counterpart)
 
-Settings > Utilities shows an "Install app" row when installing is
-actionable: the browser fired beforeinstallprompt and the app is not yet
-installed, or the device is iOS and the app is not in standalone mode.
-Tapping it triggers the browser install prompt; on iOS it shows the
-Share > Add to Home Screen steps. The installed PWA always launches at
-the manifest start_url (the app root), so it always opens on the home
-screen regardless of which view was open at install time. Strings for
-this row live in js/strings-web.js, merged over the frozen APK tables.
+Settings > Utilities shows an "Install app" row whenever the app runs
+in a browser tab; the row hides itself once installed. Tapping it triggers
+the browser install prompt when one is available; on iPhone it shows the
+Share > Add to Home Screen steps; otherwise it shows generic browser-menu
+steps. The installed PWA always launches at the manifest start_url (the
+app root), so it always opens on the home screen regardless of which view
+was open at install time. Strings for this row live in js/strings-web.js,
+merged over the frozen APK tables.
