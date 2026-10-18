@@ -2,6 +2,10 @@
 
 Every publishing ships with its own dated, versioned entry.
 
+## [2026-10-17] [v1.1.1]
+- The "Install app" row now always shows in Settings > Utilities when running in a browser tab. If the browser offers no install prompt, it shows manual steps instead of hiding.
+- Fixed: the row previously only appeared after the browser fired its install signal, so it could be missing on first visits.
+
 ## [2026-10-17] [v1.1.0]
 - Added an in-app "Install app" button (Settings > Utilities). It triggers the browser install prompt on Android and desktop; on iPhone it shows the Share > Add to Home Screen steps.
 - The installed app always opens on the home screen, no matter which view was open at install time.
