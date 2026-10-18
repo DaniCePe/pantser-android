@@ -3,7 +3,7 @@
 Every publishing ships with its own dated, versioned entry.
 
 ## [2026-10-17] [v1.2.0]
-- New app logo: option C (accent pants with double size tag), picked by Dani from 14 code-built contenders.
+- New app logo: option C (accent pants with double size tag), picked from 14 code-built contenders.
 - New icon set: 192px, 512px, and maskable 512px.
 - Service worker cache bumped to pantser-v4.
 
