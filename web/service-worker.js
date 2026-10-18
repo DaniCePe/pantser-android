@@ -1,12 +1,13 @@
 /* Pantser PWA service worker. Offline-first: caches the app shell on
    install so the app opens and generates PDFs with no connection. */
-const CACHE = 'pantser-v1';
+const CACHE = 'pantser-v2';
 const ASSETS = [
   './',
   './index.html',
   './css/styles.css',
   './js/app.js',
   './js/strings.js',
+  './js/strings-web.js',
   './js/pdf-lib.min.js',
   './manifest.json',
   './icons/icon-192.png',
