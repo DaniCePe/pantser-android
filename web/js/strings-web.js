@@ -8,6 +8,9 @@ Object.assign(STRINGS.en, {
   install_done: "Pantser is installed.",
   setting_two_box: "Two-box size input",
   setting_two_box_sub: "Two boxes with an x, like 32 x 30. Uses the phone number pad.",
+  setting_barcode: "Barcode labels (experimental)",
+  setting_barcode_sub: "Label sheets become Code 128 barcodes with the size printed under each one.",
+  label_barcode_tag: "Barcode",
   setting_ui_scale: "UI scale",
   setting_ui_scale_sub: "Makes everything bigger or smaller"
 });
@@ -19,6 +22,9 @@ Object.assign(STRINGS.es, {
   install_done: "Pantser está instalado.",
   setting_two_box: "Entrada en dos casillas",
   setting_two_box_sub: "Dos casillas con una x, como 32 x 30. Usa el teclado numérico del teléfono.",
+  setting_barcode: "Etiquetas de código de barras (experimental)",
+  setting_barcode_sub: "Las hojas se vuelven códigos de barras Code 128 con la talla impresa debajo de cada uno.",
+  label_barcode_tag: "Código de barras",
   setting_ui_scale: "Escala de la interfaz",
   setting_ui_scale_sub: "Hace todo más grande o más pequeño"
 });

@@ -3,7 +3,7 @@
    Default theme only (Linear Modern + Ember Night); other styles and
    palettes are reserved slots. No em dashes in this file. */
 
-const APP_VERSION = '1.3.2';
+const APP_VERSION = '1.4.0';
 
 /* ---------------- i18n ---------------- */
 function langCode() {
@@ -104,13 +104,39 @@ function layoutColsRows() {
 }
 
 /* ---------------- PDF generation (mirror PdfGenerator) ---------------- */
-async function generatePdf(sizeTexts) {
+/* Code 128 (set B) encoding. C128_PATTERNS[v] is the bar/space width
+   pattern for symbol value v (each symbol is 11 modules wide, the stop
+   symbol 13). Set B covers ASCII 32..126, so a size is encoded exactly
+   as typed, spaces and lowercase included. Returns the run widths in
+   modules (alternating bar, space, starting with a bar), or null when
+   the text has characters set B cannot encode. */
+const C128_PATTERNS = ['212222','222122','222221','121223','121322','131222','122213','122312','132212','221213','221312','231212','112232','122132','122231','113222','123122','123221','223211','221132','221231','213212','223112','312131','311222','321122','321221','312212','322112','322211','212123','212321','232121','111323','131123','131321','112313','132113','132311','211313','231113','231311','112133','112331','132131','113123','113321','133121','313121','211331','231131','213113','213311','213131','311123','311321','331121','312113','312311','332111','314111','221411','431111','111224','111422','121124','121421','141122','141221','112214','112412','122114','122411','142112','142211','241211','221114','413111','241112','134111','111242','121142','121241','114212','124112','124211','411212','421112','421211','212141','214121','412121','111143','111341','131141','114113','114311','411113','411311','113141','114131','311141','411131','211412','211214','211232','2331112'];
+function code128Runs(text) {
+  const vals = [104];
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    if (code < 32 || code > 126) return null;
+    vals.push(code - 32);
+  }
+  let sum = 104;
+  for (let i = 1; i < vals.length; i++) sum += i * vals[i];
+  vals.push(sum % 103, 106);
+  const runs = [];
+  vals.forEach(function (v) {
+    const pat = C128_PATTERNS[v];
+    for (let i = 0; i < pat.length; i++) runs.push(parseInt(pat[i], 10));
+  });
+  return runs;
+}
+
+async function generatePdf(sizeTexts, barcode) {
   const cr = layoutColsRows();
   const cols = cr[0], rows = cr[1];
   const { PDFDocument, StandardFonts, rgb } = PDFLib;
   const doc = await PDFDocument.create();
   const page = doc.addPage([612, 792]);
   const font = await doc.embedFont(StandardFonts.HelveticaBold);
+  const fontReg = barcode ? await doc.embedFont(StandardFonts.Helvetica) : null;
   const FS = 24;
   const L = 21.6, T = 39.6, R = 21.6, B = 33.84;
   const uw = 612 - L - R, uh = 792 - T - B;
@@ -122,9 +148,41 @@ async function generatePdf(sizeTexts) {
     for (let c = 0; c < cols; c++) {
       const txt = (c < sizeTexts.length) ? sizeTexts[c] : (sizeTexts[0] || '');
       if (!txt) continue;
-      const w = font.widthOfTextAtSize(txt, FS);
       const cx = L + c * cw + cw / 2;
       const cyTop = T + r * ch + ch / 2;
+      const runs = barcode ? code128Runs(txt) : null;
+      if (runs) {
+        /* Barcode cell: bars sized to the cell, the size itself printed
+           underneath in plain text (human-readable), the way printed
+           barcode labels normally look. A 10-module quiet zone is kept
+           on both sides so scanners can lock on. */
+        let modules = 0;
+        runs.forEach(function (w) { modules += w; });
+        const moduleW = Math.min((cw * 0.94) / (modules + 20), 2.6);
+        const codeW = moduleW * (modules + 20);
+        let capSize = 11;
+        while (capSize > 6 && fontReg.widthOfTextAtSize(txt, capSize) > cw * 0.94) capSize -= 0.5;
+        const barH = Math.min(ch * 0.5, 30);
+        const gap = 3;
+        const blockH = barH + gap + capSize;
+        const topEdge = T + r * ch + (ch - blockH) / 2;
+        let bx = L + c * cw + (cw - codeW) / 2 + 10 * moduleW;
+        const barY = 792 - (topEdge + barH);
+        runs.forEach(function (w, i) {
+          if (i % 2 === 0) {
+            page.drawRectangle({ x: bx, y: barY, width: w * moduleW, height: barH, color: rgb(0, 0, 0) });
+          }
+          bx += w * moduleW;
+        });
+        const capW = fontReg.widthOfTextAtSize(txt, capSize);
+        page.drawText(txt, {
+          x: cx - capW / 2,
+          y: 792 - (topEdge + barH + gap) - capSize * 0.75,
+          size: capSize, font: fontReg, color: rgb(0, 0, 0)
+        });
+        continue;
+      }
+      const w = font.widthOfTextAtSize(txt, FS);
       page.drawText(txt, {
         x: cx - w / 2,
         y: 792 - cyTop + baseOff,
@@ -137,22 +195,27 @@ async function generatePdf(sizeTexts) {
 }
 
 /* ---------------- createLabel (mirror MainActivity.createLabel) ---------------- */
-async function createLabel(rawSize) {
+async function createLabel(rawSize, kindOverride) {
   const size = (rawSize || '').trim();
   if (!size) { toast(t('err_empty_size')); return; }
   try {
     const n = strictKey(size);
+    /* A size can exist as a text label and as a barcode label; they are
+       different PDFs, so the record identity includes the kind. The
+       kind comes from the Utilities barcode switch, except tray
+       reprints pass the record's own kind explicitly. */
+    const kind = kindOverride || (Store.get('barcode', 'false') === 'true' ? 'barcode' : 'text');
     const records = Store.get('records', []);
-    const existing = records.find(function (r) { return strictKey(r.size) === n; });
+    const existing = records.find(function (r) { return strictKey(r.size) === n && (r.kind || 'text') === kind; });
     if (existing) {
       const bytes = await IDB.get(existing.id);
       if (bytes && bytes.length > 0) { await printRecord(existing, bytes); goHome(); return; }
     }
     const id = Date.now();
     const sizes = size.split('|').map(function (s) { return s.trim(); });
-    const bytes = await generatePdf(sizes);
+    const bytes = await generatePdf(sizes, kind === 'barcode');
     const rec = {
-      id: id, size: size, file: fileNameForSize(size),
+      id: id, size: size, file: fileNameForSize(size), kind: kind,
       created: id, prints: 0, lastPrinted: 0, bytesLen: bytes.length
     };
     await IDB.put(id, bytes);
@@ -196,7 +259,7 @@ async function printRecord(rec, bytes) {
 async function consolidate(records) {
   const map = new Map();
   for (const r of records) {
-    const n = strictKey(r.size);
+    const n = strictKey(r.size) + '|' + (r.kind || 'text');
     if (!map.has(n)) { map.set(n, r); continue; }
     const k = map.get(n);
     const winner = ((r.prints || 0) > (k.prints || 0)) ? r : k;
@@ -679,7 +742,7 @@ function renderTray() {
   const seen = new Set();
   let recs = Store.get('records', []).filter(function (r) {
     if (!(r.prints > 0)) return false;
-    const n = strictKey(r.size);
+    const n = strictKey(r.size) + '|' + (r.kind || 'text');
     if (seen.has(n)) return false;
     seen.add(n);
     return true;
@@ -699,11 +762,12 @@ function renderTray() {
     const row = document.createElement('div');
     row.className = 'tray-row';
     const name = document.createElement('span');
-    name.textContent = r.size.split('|').join(' | ');
+    name.textContent = r.size.split('|').join(' | ') +
+      (r.kind === 'barcode' ? '  ·  ' + t('label_barcode_tag') : '');
     const n = document.createElement('span');
     n.className = 'n'; n.textContent = t('print_count_text', r.prints || 0);
     row.appendChild(name); row.appendChild(n);
-    row.addEventListener('click', function () { createLabel(r.size); });
+    row.addEventListener('click', function () { createLabel(r.size, r.kind || 'text'); });
     list.appendChild(row);
   });
 }
@@ -876,6 +940,9 @@ function renderSettings() {
   u.appendChild(switchRow(t('setting_two_box'), t('setting_two_box_sub'),
     Store.get('two_box', 'false') === 'true',
     function (on) { Store.set('two_box', on ? 'true' : 'false'); renderAll(); }));
+  u.appendChild(switchRow(t('setting_barcode'), t('setting_barcode_sub'),
+    Store.get('barcode', 'false') === 'true',
+    function (on) { Store.set('barcode', on ? 'true' : 'false'); renderAll(); }));
   const layout = Store.get('layout', '4x15');
   u.appendChild(setRow(t('setting_layout'), null, layout.replace('x', ' x '), function () {
     pickDialog(t('setting_layout'), LAYOUTS.map(function (l) {

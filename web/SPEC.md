@@ -119,6 +119,12 @@ PDFs. Records are looked up, consolidated on startup, and counted as
 unique by exact raw match only. Records saved by older versions keep
 their stored raw strings and simply act as their own entries.
 
+Web v1.4.0: record identity is raw size PLUS kind (`text` or `barcode`,
+see the Barcode labels setting in section 6). Lookup and startup
+consolidation match on both, so the text and barcode versions of one
+size coexist as separate records with separate PDFs. Records saved by
+older versions have no `kind` field and count as `text`.
+
 PDF file names: `size_<clean>.pdf` where clean keeps the raw size's case,
 maps each space to `_` and each `|` to `_-_`. If clean is longer than 50 characters, the name is
 `size_adv_<hash>.pdf` using the string hash; characters outside the safe
@@ -216,6 +222,15 @@ settings). The web keeps the same grouping.
 - Two-box size input (web v1.3.0, switch, default off): classic mode home
   input becomes two boxes with an `x`; see 2.1. No effect in Advanced
   mode.
+- Barcode labels (experimental) (web v1.4.0, switch, default off): when
+  on, generated sheets render each size as a Code 128 barcode (set B,
+  the raw size text encoded exactly, spaces and case included) with the
+  size printed underneath in plain text, instead of the large bold size
+  text. Applies to classic and Advanced mode. A size can exist as both
+  a text record and a barcode record (record field `kind`); duplicates
+  consolidate per size AND kind, and quick-print tray rows reprint with
+  the record's own kind. Text that Code 128 set B cannot encode falls
+  back to the normal text cell.
 - Paper layout: dialog with 4 x 15, 3 x 10, 4 x 20, 2 x 10 (default 4 x 15).
 - Export a saved PDF: lists records as "<size> x <date>", copies the chosen
   PDF to user-picked external storage. On the web this becomes a file
@@ -271,6 +286,7 @@ Keys and defaults:
 | quick_print_sort | "last" | last / freq |
 | advanced_mode | "false" | classic / advanced |
 | two_box | "false" | web v1.3.0: classic-mode two-box input on/off |
+| barcode | "false" | web v1.4.0: barcode label sheets on/off |
 | ui_scale | "100" | web v1.3.0: UI scale percent, 50 to 200 |
 
 PDF storage: Android keeps them in filesDir/labels/. The 7-day cleanup
