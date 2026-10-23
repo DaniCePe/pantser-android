@@ -30,7 +30,9 @@ its UI programmatically and so does the web port.
   Settings), back returns to home.
 - Web mapping: the native back-button behavior is handled by the shell, so
   this becomes in-app confirm dialogs and history handling; recorded in
-  NOT-PORTED.md.
+  NOT-PORTED.md. Web v1.3.0: back from Insights returns home in the web
+  build too (it previously fell through to the homescreen exit behavior);
+  the configurable exit behavior applies on the home screen only.
 
 ## 2. Create flow
 
@@ -45,6 +47,24 @@ its UI programmatically and so does the web port.
 - Pressing it calls createLabel with the trimmed input text. Empty input
   shows the toast "Type in a size first."
 
+Web v1.3.0, classic mode only: the "Two-box size input" Utilities setting
+replaces the single input with two boxes and an `x` between them, for
+sizes in the `zz x yy` shape. The boxes are plain text inputs with
+`inputmode="numeric"`, so the phone's own number pad opens (never
+`type="number"`, so leading zeros like `08` and a literal `00` survive;
+there is no ODD substitution). Typing a second digit moves focus to the
+next box; backspace on an empty box moves focus to the previous box;
+tapping a box clears just that box. Create joins the boxes as
+`<a> x <b>`. Enter in either box is Create Label. Non-numeric sizes are
+entered by turning the setting off. Advanced mode is unaffected.
+
+Web v1.3.0, all home inputs: typed text is a session draft
+(sessionStorage). It survives switching to Settings, Insights or Info and
+returning, and survives view rebuilds; a fresh app launch starts blank.
+Pressing CREATE LABEL clears the active mode's draft immediately, before
+any printing happens; the created size remains available in the
+quick-print tray and history.
+
 ### 2.2 Advanced multi-column mode (Settings toggle)
 
 - Enabled by the Print Mode setting. The single input hides and a row of N
@@ -57,37 +77,47 @@ its UI programmatically and so does the web port.
   one. The button hides when there is no skipped column.
 - Backspace on an empty column moves focus to the previous column (cursor at
   its end).
-- Typed text is kept in memory across view rebuilds and tab switches.
+- Typed text is kept across view rebuilds and tab switches (session
+  draft; see 2.1). Pressing CREATE LABEL clears it, valid input or not.
 - Pressing CREATE LABEL: if any column is blank, toast "Check all column
   sizes." and abort. Otherwise the sizes are joined with `|` (no spaces).
 
 ### 2.3 createLabel(size)
 
 1. Trim the input. If empty, toast the error and return.
-2. Look for an existing record whose normalized size matches. If found and
-   its PDF file exists with length > 0, print it and return home.
+2. Look for an existing record whose size matches exactly (raw identity,
+   see below). If found and its PDF file exists with length > 0, print it
+   and return home.
 3. Otherwise create a new record: id = current time in milliseconds,
    fileName = fileNameForSize(size), createdAt = id. Generate the PDF into
    the labels folder, save the record at the head of the list, record the
    size as unique, then print and return home.
 4. Failures show the toast "Could not create label: <message>".
 
-Normalization: lowercase the string, then remove all whitespace from each
-`|` segment. Two records with the same normalized size are duplicates;
-duplicates are consolidated on startup (keeps the record with the most
-prints, sums print counts, keeps the latest print time, renames the file to
-the canonical name).
+Size identity (APK and web v1.0 to v1.2.0): lowercase the string, then
+remove all whitespace from each `|` segment; two records with the same
+normalized size are duplicates.
 
-PDF file names: `size_<clean>.pdf` where clean is the normalized size with
-`|` replaced by `_`. If clean is longer than 50 characters, the name is
-`size_adv_<hash>.pdf` using the string hash.
+Web v1.3.0 (web-only deviation): size identity is the RAW string after
+trimming the ends. Case and internal spacing count, so `32 x32`,
+`32 x 32` and `32 X 32` are three different sizes with three different
+PDFs. Records are looked up, consolidated on startup, and counted as
+unique by exact raw match only. Records saved by older versions keep
+their stored raw strings and simply act as their own entries.
+
+PDF file names: `size_<clean>.pdf` where clean keeps the raw size's case,
+maps each space to `_` and each `|` to `_-_`. If clean is longer than 50 characters, the name is
+`size_adv_<hash>.pdf` using the string hash; characters outside the safe
+set also add a `_<hash>` suffix so two different raw sizes never share a
+file name.
 
 ### 2.4 Quick-print tray
 
 - Lists records with printCount > 0.
 - Sorting: "Last Used" (default) sorts by lastPrintedAt descending;
   "Frequently Used" sorts by printCount descending. Toggle in Settings.
-- Deduplicate by normalized size, keep the first 8.
+- Deduplicate by exact raw size (web v1.3.0; previously by normalized
+  size), keep the first 8.
 - Each row shows the size (pipes rendered as ` | `) and `<n> prints`.
 - Tapping a row calls createLabel with the raw stored size.
 - Empty state text: "Your recently printed labels will appear here."
@@ -169,6 +199,9 @@ settings). The web keeps the same grouping.
 - Print Mode: Classic ("One Label Type") or Advanced ("%1$d Labels, %2$d
   Columns" with the layout's column count twice). Toggling rebuilds the
   home view.
+- Two-box size input (web v1.3.0, switch, default off): classic mode home
+  input becomes two boxes with an `x`; see 2.1. No effect in Advanced
+  mode.
 - Paper layout: dialog with 4 x 15, 3 x 10, 4 x 20, 2 x 10 (default 4 x 15).
 - Export a saved PDF: lists records as "<size> x <date>", copies the chosen
   PDF to user-picked external storage. On the web this becomes a file
@@ -195,6 +228,10 @@ settings). The web keeps the same grouping.
 - Theme Style: Linear Modern (default) / Retro 90s Nostalgia / Bauhaus
   Geometric / Terminal CLI / Dopamine Maximalism. Web v1 implements the
   default style only; slots are reserved for the rest.
+- UI scale (web v1.3.0): minus / percent / plus stepper, 5% steps, 50 to
+  200%, default 100%. Implemented as the root font size times the scale;
+  the whole stylesheet is in rem so the layout reflows. CSS zoom is not
+  used. The PDF geometry is not affected.
 
 ## 7. Persistence contract
 
@@ -217,6 +254,8 @@ Keys and defaults:
 | layout | "4x15" | 4x15 / 3x10 / 4x20 / 2x10 |
 | quick_print_sort | "last" | last / freq |
 | advanced_mode | "false" | classic / advanced |
+| two_box | "false" | web v1.3.0: classic-mode two-box input on/off |
+| ui_scale | "100" | web v1.3.0: UI scale percent, 50 to 200 |
 
 PDF storage: Android keeps them in filesDir/labels/. The 7-day cleanup
 rule: a record is removed (file deleted, record dropped) when

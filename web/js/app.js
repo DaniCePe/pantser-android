@@ -65,9 +65,13 @@ const IDB = {
   del: function (id) { return this.tx('readwrite', function (st) { return st.delete('pdf:' + id); }); }
 };
 
-/* ---------------- size helpers (mirror AppStore) ---------------- */
-function normSize(s) {
-  return String(s).toLowerCase().split('|').map(function (p) { return p.replace(/\s+/g, ''); }).join('|');
+/* ---------------- size helpers ---------------- */
+/* Size identity is the RAW string (v1.3.0, web-only change): case and
+   spacing count, so "32 x32", "32 x 32" and "32 X 32" are three different
+   sizes with three different PDFs. Only the ends are trimmed, by
+   createLabel, before a size gets here. */
+function strictKey(s) {
+  return String(s);
 }
 function javaHash(s) {
   let h = 0;
@@ -75,9 +79,21 @@ function javaHash(s) {
   return h;
 }
 function fileNameForSize(size) {
-  const n = normSize(size);
-  const clean = n.replace(/\|/g, '_');
-  if (clean.length > 50) return 'size_adv_' + javaHash(n) + '.pdf';
+  /* Keep distinct raw sizes in distinct export file names: spaces and
+     pipes map to visible separators, case is preserved, and anything
+     else unsafe in a file name falls back to a hash suffix. */
+  const raw = String(size);
+  let clean = '';
+  let lossy = false;
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw[i];
+    if (/[A-Za-z0-9._-]/.test(ch)) clean += ch;
+    else if (ch === ' ') clean += '_';
+    else if (ch === '|') clean += '_-_';
+    else { clean += '_'; lossy = true; }
+  }
+  if (clean.length > 50) return 'size_adv_' + javaHash(raw) + '.pdf';
+  if (lossy) return 'size_' + clean + '_' + javaHash(raw) + '.pdf';
   return 'size_' + clean + '.pdf';
 }
 function layoutColsRows() {
@@ -123,9 +139,9 @@ async function createLabel(rawSize) {
   const size = (rawSize || '').trim();
   if (!size) { toast(t('err_empty_size')); return; }
   try {
-    const n = normSize(size);
+    const n = strictKey(size);
     const records = Store.get('records', []);
-    const existing = records.find(function (r) { return normSize(r.size) === n; });
+    const existing = records.find(function (r) { return strictKey(r.size) === n; });
     if (existing) {
       const bytes = await IDB.get(existing.id);
       if (bytes && bytes.length > 0) { await printRecord(existing, bytes); goHome(); return; }
@@ -178,7 +194,7 @@ async function printRecord(rec, bytes) {
 async function consolidate(records) {
   const map = new Map();
   for (const r of records) {
-    const n = normSize(r.size);
+    const n = strictKey(r.size);
     if (!map.has(n)) { map.set(n, r); continue; }
     const k = map.get(n);
     const winner = ((r.prints || 0) > (k.prints || 0)) ? r : k;
@@ -349,7 +365,7 @@ function tryClose() {
      happens. Recorded in NOT-PORTED.md. */
 }
 function onBackPressed() {
-  if (currentView === 'settings' || currentView === 'info') { showView('home'); return; }
+  if (currentView === 'settings' || currentView === 'info' || currentView === 'insights') { showView('home'); return; }
   const b = Store.get('back_behavior', 'ask');
   if (b === 'ask') {
     showDialog({
@@ -402,8 +418,35 @@ function applyStrings() {
 }
 
 /* ---------------- home ---------------- */
+/* Session drafts (v1.3.0): what is typed on the home screen is kept in
+   sessionStorage, so it survives switching to Settings, Insights or Info
+   (and the renders those cause) and even a page reload, but a fresh app
+   launch starts blank. Pressing Create Label clears the active draft. */
 let advMem = [];
 let classicMem = '';
+let tbMem = ['', ''];
+try {
+  classicMem = sessionStorage.getItem('draft_classic') || '';
+  advMem = JSON.parse(sessionStorage.getItem('draft_adv') || '[]');
+  tbMem = JSON.parse(sessionStorage.getItem('draft_tb') || '["",""]');
+  if (!Array.isArray(advMem)) advMem = [];
+  if (!Array.isArray(tbMem) || tbMem.length !== 2) tbMem = ['', ''];
+} catch (e) {}
+function saveDrafts() {
+  try {
+    sessionStorage.setItem('draft_classic', classicMem);
+    sessionStorage.setItem('draft_adv', JSON.stringify(advMem));
+    sessionStorage.setItem('draft_tb', JSON.stringify(tbMem));
+  } catch (e) {}
+}
+function seedTbFromClassic() {
+  if (tbMem[0] || tbMem[1]) return;
+  const m = /^(\d{1,2})\s*x\s*(\d{1,2})$/i.exec((classicMem || '').trim());
+  if (m) { tbMem = [m[1], m[2]]; }
+}
+function syncClassicFromTb() {
+  classicMem = (tbMem[0] && tbMem[1]) ? tbMem[0] + ' x ' + tbMem[1] : (tbMem[0] || tbMem[1] || '');
+}
 
 function renderHome() {
   document.getElementById('home-prompt').textContent = t('prompt_what_size');
@@ -415,15 +458,65 @@ function renderHome() {
   const cols = layoutColsRows()[0];
   const jumpBtn = document.getElementById('btn-jump');
 
-  if (!advanced) {
+  const twoBox = !advanced && Store.get('two_box', 'false') === 'true';
+  if (!advanced && !twoBox) {
     wrap.classList.remove('row');
     const inp = document.createElement('input');
     inp.type = 'text'; inp.id = 'classic-input';
     inp.placeholder = t('hint_example'); inp.value = classicMem;
     inp.setAttribute('aria-label', t('prompt_what_size'));
-    inp.addEventListener('input', function () { classicMem = inp.value; });
+    inp.addEventListener('input', function () { classicMem = inp.value; saveDrafts(); });
     inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') doCreateClassic(); });
     wrap.appendChild(inp);
+    jumpBtn.classList.add('hidden');
+  } else if (twoBox) {
+    wrap.classList.remove('row');
+    seedTbFromClassic();
+    const row = document.createElement('div');
+    row.className = 'two-box';
+    const boxes = [];
+    for (let bi = 0; bi < 2; bi++) {
+      const binp = document.createElement('input');
+      binp.type = 'text'; binp.id = 'tb-input-' + bi;
+      binp.inputMode = 'numeric'; binp.setAttribute('pattern', '[0-9]*');
+      binp.setAttribute('autocomplete', 'off');
+      binp.maxLength = 2;
+      binp.value = tbMem[bi] || '';
+      binp.placeholder = bi === 0 ? '32' : '30';
+      binp.setAttribute('aria-label', t('hint_example'));
+      boxes.push(binp);
+    }
+    boxes.forEach(function (el, index) {
+      el.addEventListener('input', function () {
+        el.value = el.value.replace(/\D/g, '').slice(0, 2);
+        tbMem[index] = el.value;
+        syncClassicFromTb(); saveDrafts();
+        if (index === 0 && el.value.length === 2) {
+          boxes[1].focus();
+          try { boxes[1].setSelectionRange(boxes[1].value.length, boxes[1].value.length); } catch (e) {}
+        }
+      });
+      el.addEventListener('click', function () {
+        /* Tapping a box clears just that box. A programmatic focus from
+           the auto-advance does not fire click, so it never clears. */
+        if (el.value) { el.value = ''; tbMem[index] = ''; syncClassicFromTb(); saveDrafts(); }
+      });
+      el.addEventListener('keydown', function (e) {
+        if (e.key === 'Backspace' && el.value === '' && index > 0) {
+          e.preventDefault();
+          const prev = boxes[index - 1];
+          prev.focus();
+          try { prev.setSelectionRange(prev.value.length, prev.value.length); } catch (err) {}
+        }
+        if (e.key === 'Enter') doCreateTwoBox();
+      });
+    });
+    row.appendChild(boxes[0]);
+    const xSep = document.createElement('span');
+    xSep.className = 'two-box-x'; xSep.textContent = 'x';
+    row.appendChild(xSep);
+    row.appendChild(boxes[1]);
+    wrap.appendChild(row);
     jumpBtn.classList.add('hidden');
   } else {
     wrap.classList.add('row');
@@ -436,7 +529,7 @@ function renderHome() {
       inp.placeholder = t('label_column_x', i + 1);
       inp.setAttribute('aria-label', t('label_column_x', i + 1));
       (function (index, el) {
-        el.addEventListener('input', function () { advMem[index] = el.value; refreshAsterisks(); });
+        el.addEventListener('input', function () { advMem[index] = el.value; saveDrafts(); refreshAsterisks(); });
         el.addEventListener('keydown', function (e) {
           if (e.key === 'Backspace' && el.value === '' && index > 0) {
             e.preventDefault();
@@ -480,18 +573,34 @@ function renderHome() {
   const cb = document.getElementById('btn-create');
   cb.textContent = t('create_label_btn');
   cb.setAttribute('aria-label', t('generate_pdf'));
-  cb.onclick = function () { advanced ? doCreateAdvanced() : doCreateClassic(); };
+  cb.onclick = function () { advanced ? doCreateAdvanced() : (twoBox ? doCreateTwoBox() : doCreateClassic()); };
   renderTray();
 }
 
 function doCreateClassic() {
   const el = document.getElementById('classic-input');
-  createLabel(el ? el.value : classicMem);
+  const v = el ? el.value : classicMem;
+  /* Pressing Create clears the draft right away (v1.3.0): the app cannot
+     know whether anything truly printed, and the size lands in the quick
+     print tray / history, so it is one tap away if it is needed again. */
+  classicMem = ''; tbMem = ['', '']; saveDrafts();
+  if (el) el.value = '';
+  createLabel(v);
+}
+function doCreateTwoBox() {
+  const a = tbMem[0] || '', b = tbMem[1] || '';
+  tbMem = ['', '']; classicMem = ''; saveDrafts();
+  document.querySelectorAll('.two-box input').forEach(function (el) { el.value = ''; });
+  if (!a || !b) { toast(t('err_empty_size')); return; }
+  createLabel(a + ' x ' + b);
 }
 function doCreateAdvanced() {
   const cols = layoutColsRows()[0];
   const vals = [];
   for (let i = 0; i < cols; i++) vals.push((advMem[i] || '').trim());
+  advMem = advMem.map(function () { return ''; });
+  saveDrafts();
+  document.querySelectorAll('#home-inputs input').forEach(function (el) { el.value = ''; });
   if (vals.some(function (v) { return v === ''; })) { toast(t('err_invalid_column')); return; }
   createLabel(vals.join('|'));
 }
@@ -504,7 +613,7 @@ function renderTray() {
   const seen = new Set();
   let recs = Store.get('records', []).filter(function (r) {
     if (!(r.prints > 0)) return false;
-    const n = normSize(r.size);
+    const n = strictKey(r.size);
     if (seen.has(n)) return false;
     seen.add(n);
     return true;
@@ -698,6 +807,9 @@ function renderSettings() {
       { key: 'true', label: t('print_mode_advanced'), sub: t('print_mode_advanced_sub', cols, cols) }
     ], Store.get('advanced_mode', 'false'), function (k) { Store.set('advanced_mode', k); renderAll(); });
   }));
+  u.appendChild(switchRow(t('setting_two_box'), t('setting_two_box_sub'),
+    Store.get('two_box', 'false') === 'true',
+    function (on) { Store.set('two_box', on ? 'true' : 'false'); renderAll(); }));
   const layout = Store.get('layout', '4x15');
   u.appendChild(setRow(t('setting_layout'), null, layout.replace('x', ' x '), function () {
     pickDialog(t('setting_layout'), LAYOUTS.map(function (l) {
@@ -783,6 +895,7 @@ function renderSettings() {
       return { key: x.key, label: t(x.tkey), later: x.later };
     }), Store.get('ui_style', 'modern'), function () {});
   }));
+  a.appendChild(scaleRow());
 }
 
 function showExportDialog() {
@@ -818,9 +931,48 @@ async function exportPdf(rec) {
   }
 }
 
+/* ---------------- UI scale (v1.3.0) ---------------- */
+/* Same approach as the JeansMixing web app: a root font-size scale, so
+   every rem in the stylesheet grows or shrinks and the layout reflows.
+   CSS zoom is never used; it shrinks the box, not the layout. */
+function uiScaleVal() {
+  let v = parseInt(Store.get('ui_scale', '100'), 10);
+  if (isNaN(v)) v = 100;
+  return Math.min(200, Math.max(50, v));
+}
+function applyScale() {
+  document.documentElement.style.setProperty('--scale', String(uiScaleVal() / 100));
+}
+function scaleRow() {
+  const b = document.createElement('div');
+  b.className = 'set-row'; b.style.cursor = 'default';
+  const left = document.createElement('span');
+  const tt = document.createElement('span'); tt.className = 't'; tt.textContent = t('setting_ui_scale');
+  left.appendChild(tt);
+  const s = document.createElement('span'); s.className = 's'; s.textContent = t('setting_ui_scale_sub');
+  left.appendChild(s);
+  b.appendChild(left);
+  const st = document.createElement('div'); st.className = 'stepper';
+  const down = document.createElement('button'); down.type = 'button'; down.textContent = '\u2212';
+  down.setAttribute('aria-label', 'smaller');
+  const val = document.createElement('span'); val.className = 'sv'; val.textContent = uiScaleVal() + '%';
+  const up = document.createElement('button'); up.type = 'button'; up.textContent = '+';
+  up.setAttribute('aria-label', 'bigger');
+  const bump = function (d) {
+    Store.set('ui_scale', String(Math.min(200, Math.max(50, uiScaleVal() + d))));
+    applyScale(); renderAll();
+  };
+  down.addEventListener('click', function () { bump(-5); });
+  up.addEventListener('click', function () { bump(5); });
+  st.appendChild(down); st.appendChild(val); st.appendChild(up);
+  b.appendChild(st);
+  return b;
+}
+
 /* ---------------- render all + init ---------------- */
 function renderAll() {
   applyStrings();
+  applyScale();
   renderHome();
   renderInsights();
   renderSettings();
@@ -835,6 +987,7 @@ async function init() {
       if (Store.get('mode', 'system') === 'system') applyTheme();
     });
   }
+  applyScale();
   renderAll();
   makePager(document.getElementById('pager'), null);
   makePager(document.getElementById('settings-pager'), document.getElementById('settings-dots'));

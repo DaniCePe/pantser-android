@@ -2,6 +2,15 @@
 
 Every publishing ships with its own dated, versioned entry.
 
+## [2026-10-22] [v1.3.0]
+- New Utilities setting: "Two-box size input" (classic mode only). Two boxes with an x between them, like 32 x 30, using the phone's own number pad keyboard. Typing 2 digits moves to the next box, backspace on an empty box goes back, and tapping a box clears it. Advanced multi-column mode is unchanged.
+- New Appearance setting: "UI scale" stepper (minus / percent / plus, 5% steps, 50 to 200%), scaling the whole interface through the root font size.
+- The home screen text now survives switching to Settings, Insights or Info and coming back, for the rest of the session. Pressing Create Label clears it.
+- Size identity is now the raw text: spacing and letter case count, so "32 x32", "32 x 32" and "32 X 32" each get their own PDF instead of reusing the first one typed. Saved sizes from older versions keep working as their own entries.
+- The Android back button now goes from Insights back to the home screen, like it already did from Settings and Info. The back button setting (Ask user / One press / Two press / Disable) still applies on the home screen only.
+- Service worker cache bumped to pantser-v5.
+- SPEC.md sections 1, 2, 6 and 7 document the new settings and the raw size identity (web-only changes; the APK is unchanged).
+
 ## [2026-10-17] [v1.2.0]
 - New app logo: option C (accent pants with double size tag), picked from 14 code-built contenders.
 - New icon set: 192px, 512px, and maskable 512px.
