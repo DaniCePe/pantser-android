@@ -28,6 +28,12 @@ its UI programmatically and so does the web port.
   (default; confirm dialog), One press exit, Two press exit (second press
   within 2 seconds), Disable exit. From secondary views (Insights, Info,
   Settings), back returns to home.
+- Web v1.5.0: the Info screen shows the running version under its pager
+  dots, with a Check for updates button below it. The button forces an
+  immediate update check (fresh version lookup plus a service-worker
+  update); when a newer version is found and installed, the button becomes
+  Restart to update and reloads the app into the new version. Labels and
+  settings live in storage, not in the app shell, and survive the restart.
 - Web mapping: the native back-button behavior is handled by the shell, so
   this becomes in-app confirm dialogs and history handling; recorded in
   NOT-PORTED.md. Web v1.3.0: back from Insights returns home in the web

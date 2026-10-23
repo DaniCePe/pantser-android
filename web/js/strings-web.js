@@ -11,6 +11,13 @@ Object.assign(STRINGS.en, {
   setting_barcode: "Barcode labels (experimental)",
   setting_barcode_sub: "Label sheets become Code 128 barcodes with the size printed under each one.",
   label_barcode_tag: "Barcode",
+  upd_check: "Check for updates",
+  upd_checking: "Checking for updates\u2026",
+  upd_latest: "You're up to date",
+  upd_available: "A new version is available",
+  upd_restart: "Restart to update",
+  upd_failed: "Couldn't check for updates. Try again when you're back online.",
+  upd_unsupported: "Updates aren't available in this browser.",
   setting_ui_scale: "UI scale",
   setting_ui_scale_sub: "Makes everything bigger or smaller"
 });
@@ -25,6 +32,13 @@ Object.assign(STRINGS.es, {
   setting_barcode: "Etiquetas de código de barras (experimental)",
   setting_barcode_sub: "Las hojas se vuelven códigos de barras Code 128 con la talla impresa debajo de cada uno.",
   label_barcode_tag: "Código de barras",
+  upd_check: "Buscar actualizaciones",
+  upd_checking: "Buscando actualizaciones\u2026",
+  upd_latest: "Ya tienes la última versión",
+  upd_available: "Hay una versión nueva disponible",
+  upd_restart: "Reiniciar para actualizar",
+  upd_failed: "No se pudieron buscar actualizaciones. Inténtalo cuando tengas conexión.",
+  upd_unsupported: "Las actualizaciones no están disponibles en este navegador.",
   setting_ui_scale: "Escala de la interfaz",
   setting_ui_scale_sub: "Hace todo más grande o más pequeño"
 });

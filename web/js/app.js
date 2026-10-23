@@ -3,7 +3,7 @@
    Default theme only (Linear Modern + Ember Night); other styles and
    palettes are reserved slots. No em dashes in this file. */
 
-const APP_VERSION = '1.4.1';
+const APP_VERSION = '1.5.0';
 
 /* ---------------- i18n ---------------- */
 function langCode() {
@@ -828,6 +828,103 @@ function renderInsights() {
   document.getElementById('ins-storage').textContent = t('storage_used', fmtBytes(total));
 }
 
+/* ---------------- updates ----------------
+   The service worker already installs new versions by itself
+   (skipWaiting + clients.claim), but the browser only looks for them
+   on its own lazy schedule. This button forces the check now; once a
+   new worker has installed, the button becomes Restart to update and
+   simply reloads, which serves the fresh shell from the new cache. */
+let updState = 'idle'; /* idle | checking | ready */
+let updLatest = null;
+
+function renderUpdate() {
+  const btn = document.getElementById('btn-update');
+  const st = document.getElementById('update-status');
+  if (!btn) return;
+  if (updState === 'checking') {
+    btn.disabled = true;
+    btn.textContent = t('upd_checking');
+  } else if (updState === 'ready') {
+    btn.disabled = false;
+    btn.textContent = t('upd_restart');
+    if (st) st.textContent = t('upd_available') + (updLatest ? ' (v' + updLatest + ')' : '');
+  } else {
+    btn.disabled = false;
+    btn.textContent = t('upd_check');
+  }
+}
+
+async function checkForUpdates() {
+  const st = document.getElementById('update-status');
+  if (!('serviceWorker' in navigator)) {
+    if (st) st.textContent = t('upd_unsupported');
+    return;
+  }
+  updState = 'checking';
+  renderUpdate();
+  if (st) st.textContent = '';
+  let netFailed = false;
+  try {
+    const reg = await navigator.serviceWorker.getRegistration();
+    if (!reg) throw new Error('no registration');
+    /* Read the live version straight from the served app.js, bypassing
+       every cache, so the answer is about the server, not about what
+       happens to be stored on this device. */
+    let latest = null;
+    try {
+      const res = await fetch('js/app.js?u=' + Date.now(), { cache: 'no-store' });
+      if (res && res.ok) {
+        const txt = await res.text();
+        const m = txt.match(/APP_VERSION = '([^']+)'/);
+        if (m) latest = m[1];
+      } else {
+        netFailed = true;
+      }
+    } catch (e) {
+      netFailed = true;
+    }
+    await reg.update();
+    /* If a new worker appeared, wait until it has installed (it then
+       activates itself) so the restart lands on the new version. */
+    const w = reg.installing || reg.waiting;
+    if (w && w.state !== 'installed' && w.state !== 'activated') {
+      await new Promise(function (resolve) {
+        const to = setTimeout(resolve, 8000);
+        const done = function () { clearTimeout(to); resolve(); };
+        w.addEventListener('statechange', function () {
+          if (w.state === 'installed' || w.state === 'activated') done();
+        });
+        if (w.state === 'installed' || w.state === 'activated') done();
+      });
+    }
+    if ((latest && latest !== APP_VERSION) || w) {
+      updLatest = latest;
+      updState = 'ready';
+      renderUpdate();
+    } else if (netFailed) {
+      updState = 'idle';
+      renderUpdate();
+      if (st) st.textContent = t('upd_failed');
+    } else {
+      updState = 'idle';
+      renderUpdate();
+      if (st) st.textContent = t('upd_latest') + ' (v' + APP_VERSION + ')';
+    }
+  } catch (e) {
+    updState = 'idle';
+    renderUpdate();
+    if (st) st.textContent = t('upd_failed');
+  }
+}
+
+function onUpdateButton() {
+  if (updState === 'ready') {
+    try { location.reload(); } catch (e) {}
+    return;
+  }
+  if (updState !== 'checking') checkForUpdates();
+}
+
 /* ---------------- info ---------------- */
 function renderInfo() {
   const set = function (id, key) { document.getElementById(id).textContent = t(key); };
@@ -835,6 +932,7 @@ function renderInfo() {
   set('info-t2', 'manual_concept_title'); set('info-b2', 'manual_concept_body');
   set('info-t3', 'manual_steps_title'); set('info-b3', 'manual_steps_body');
   set('info-t4', 'manual_settings_title'); set('info-b4', 'manual_settings_body');
+  renderUpdate();
 }
 
 /* ---------------- settings ---------------- */
@@ -1161,6 +1259,8 @@ async function init() {
   }, { passive: true });
 
   document.getElementById('info-version').textContent = 'v' + APP_VERSION;
+  document.getElementById('btn-update').addEventListener('click', onUpdateButton);
+  renderUpdate();
   try { history.replaceState({ pantser: 'base' }, ''); } catch (e) {}
   armTrap();
   window.addEventListener('popstate', onPopState);

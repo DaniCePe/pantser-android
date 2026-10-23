@@ -2,6 +2,10 @@
 
 Every publishing ships with its own dated, versioned entry.
 
+## [2026-10-23] [v1.5.0]
+- Added: a Check for updates button on the Info screen, under the version label. Tapping it forces the app to check for a newer version right away; when one is found, the button becomes Restart to update and one tap restarts the app into the new version. Saved labels and settings are not affected.
+- Service worker cache bumped to pantser-v10.
+
 ## [2026-10-23] [v1.4.1]
 - Adjusted: barcode labels are now taller and narrower, closer to a grocery-store barcode. The bars take up most of each cell's height and the code no longer stretches to fill the cell's width.
 - Service worker cache bumped to pantser-v9.
