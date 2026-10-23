@@ -3,6 +3,8 @@
    Default theme only (Linear Modern + Ember Night); other styles and
    palettes are reserved slots. No em dashes in this file. */
 
+const APP_VERSION = '1.3.2';
+
 /* ---------------- i18n ---------------- */
 function langCode() {
   const l = Store.get('lang', 'system');
@@ -355,14 +357,56 @@ function showView(v, push) {
   if (v === 'info') { vi.classList.remove('hidden'); document.getElementById('dock').style.display = 'none'; }
   document.getElementById('tab-create').classList.toggle('on', v === 'home');
   document.getElementById('tab-insights').classList.toggle('on', v === 'insights');
-  if (push !== false) { try { history.pushState({ v: v }, ''); } catch (e) {} }
+  /* No history pushes here (v1.3.2): view changes are internal state.
+     The old per-navigation pushes made the history stack grow and drain
+     unevenly (some paths re-pushed, some did not), so a back press could
+     occasionally run past the app's entries and close it. Browser
+     history is now only the single re-arming trap in onPopState. The
+     push argument is kept for call-site compatibility and ignored. */
 }
 
 let exitArmedAt = 0;
+let exitingApp = false;
 function tryClose() {
+  exitingApp = true;
   window.close();
   /* If the browser refuses (tab not opened by script), nothing else
      happens. Recorded in NOT-PORTED.md. */
+}
+/* The back trap (v1.3.2): a sacrificial history entry sits above the
+   base entry so a system back press pops the trap and popstate fires,
+   instead of the browser leaving the app. Two kinds of arm:
+   - provisional: pushed at startup and after each back press. Android
+     Chrome's history manipulation intervention can SKIP entries that
+     were pushed without a user gesture, so a provisional trap alone is
+     not reliable (field report: back closed the app from any menu, the
+     Ask dialog never appeared; it worked better before 1.3, when most
+     entries happened to be pushed from taps).
+   - gesture-armed: pushed from a real pointerdown or keydown, which
+     Chrome cannot skip. trapNeedsArm tracks this: after any back press
+     the trap counts as spent until the user's next tap or keypress
+     arms a fresh non-skippable one. That next gesture always comes
+     before the next deliberate action (even a swipe starts with a
+     pointerdown), so in practice the top entry is a gesture trap
+     whenever back matters.
+   Only an intentional exit (tryClose) leaves the trap disarmed. */
+let trapNeedsArm = true;
+function pushTrap() {
+  try { history.pushState({ pantser: 'trap' }, ''); } catch (e) {}
+}
+function armTrap() {
+  pushTrap();
+  trapNeedsArm = true;
+}
+function ensureTrapFromGesture() {
+  if (!trapNeedsArm) return;
+  pushTrap();
+  trapNeedsArm = false;
+}
+function onPopState() {
+  exitingApp = false;
+  onBackPressed();
+  if (!exitingApp) armTrap();
 }
 function onBackPressed() {
   /* Belt and braces (v1.3.1): if Insights is what is actually on screen,
@@ -380,10 +424,10 @@ function onBackPressed() {
   else if (b === 'two_press') {
     const now = Date.now();
     if (now - exitArmedAt < 2000) { exitArmedAt = 0; tryClose(); }
-    else { exitArmedAt = now; toast(t('toast_press_again_exit')); try { history.pushState({ v: currentView }, ''); } catch (e) {} }
-  } else {
-    try { history.pushState({ v: currentView }, ''); } catch (e) {}
+    else { exitArmedAt = now; toast(t('toast_press_again_exit')); }
   }
+  /* 'disable' and the non-exit paths need no history work here:
+     onPopState re-arms the trap after every back press. */
 }
 
 /* small swipe pager with dots */
@@ -1043,8 +1087,12 @@ async function init() {
     else if (dx > 60 && currentView === 'insights') showView('home');
   }, { passive: true });
 
-  try { history.replaceState({ v: 'home' }, ''); } catch (e) {}
-  window.addEventListener('popstate', function () { onBackPressed(); });
+  document.getElementById('info-version').textContent = 'v' + APP_VERSION;
+  try { history.replaceState({ pantser: 'base' }, ''); } catch (e) {}
+  armTrap();
+  window.addEventListener('popstate', onPopState);
+  document.addEventListener('pointerdown', ensureTrapFromGesture, true);
+  document.addEventListener('keydown', ensureTrapFromGesture, true);
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('service-worker.js').catch(function () {});

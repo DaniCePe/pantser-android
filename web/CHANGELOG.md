@@ -2,6 +2,11 @@
 
 Every publishing ships with its own dated, versioned entry.
 
+## [2026-10-22] [v1.3.2]
+- Fixed: pressing back after swiping to Insights still closed the app sometimes, and with the Ask setting the exit confirmation could fail to appear at all, from any menu. Screen changes used to push browser history entries, while only some back paths pushed one back, and Android Chrome can outright skip history entries that were not pushed from a real tap or keypress (its history manipulation intervention), which is why behaviour varied with how each entry had been created. Screen changes no longer touch browser history. Instead the app keeps a sacrificial trap entry above its base entry, re-armed provisionally after every back press and, crucially, re-armed from the user's next tap or keypress, which Chrome cannot skip. Back can only close the app from the home screen, through the existing back button setting, whose Ask confirmation is part of this fix and verified working.
+- Added: the app version now appears at the bottom of the Info screen (below the user manual pages), so it is easy to confirm that an update actually arrived on your device. (Folded into this release at the maintainer's request rather than shipped as its own update.)
+- Service worker cache bumped to pantser-v7.
+
 ## [2026-10-22] [v1.3.1]
 - Fixed: after swiping to Insights, the Android back button could exit the app instead of returning home. The main pager had two controllers (the generic pager helper and the view switcher) that could disagree about what was on screen; the view switcher is now the only one, and back handling also checks what is actually displayed. Tapping Insights and going back already worked; both paths now behave the same.
 - Fixed: in the two-box input, a digit typed while the first box was already full (for example right after backspace jumped back to it) was silently swallowed by the two-character limit. It is now typed into the second box instead, moving focus there.

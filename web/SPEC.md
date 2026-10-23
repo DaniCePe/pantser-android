@@ -36,6 +36,13 @@ its UI programmatically and so does the web port.
   Web v1.3.1: the main pager has a single controller (the view switcher);
   the generic pager helper is only for the Settings and Info pagers, and
   back handling verifies what is actually on screen before deciding.
+  Web v1.3.2: view changes never push browser history entries. The app
+  keeps one sacrificial trap entry above its base entry, re-armed
+  provisionally after every popstate and re-armed for real on the user's
+  next pointerdown or keydown (entries pushed without a user gesture can
+  be skipped by Chrome's history manipulation intervention; gesture-
+  pushed ones cannot). Only an intentional exit leaves it disarmed, so
+  the history stack cannot drain and back cannot slip out of the app.
 
 ## 2. Create flow
 
@@ -220,6 +227,8 @@ settings). The web keeps the same grouping.
   lastPrintedAt (or createdAt when never printed) is older than 7 days.
   Turning the switch on runs the cleanup immediately.
 - Delete cache: clears temporary files.
+- The bottom of the Info screen shows the running app version
+  (from a single APP_VERSION constant in the web app).
 - Delete old PDFs: dialog with Older than 7 days / Older than 30 days /
   Older than 90 days / Delete all saved PDFs. Uses createdAt. "Delete all"
   removes every record and every saved PDF file. Shows the toast
