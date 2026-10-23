@@ -2,6 +2,13 @@
 
 Every publishing ships with its own dated, versioned entry.
 
+## [2026-10-23] [v1.6.0]
+- Added: a wide layout for desktop windows and landscape phones. The top bar and bottom bar stretch to the edges of the screen with the title centered, page content sits in a readable centered column, and the home screen's size box becomes a long centered bar with the Create button under it. Phone portrait layout is unchanged.
+- Added: in the wide layout, the Two-box size input and Barcode labels switches also appear as cards at the top left of the home screen. They mirror the switches in Settings — flipping one flips the other. Two-box input is on by default on wide screens until it is changed.
+- Added: on desktop-sized screens the size box is focused automatically when the app opens, with the caret waiting in the left box — just start typing.
+- Changed: Barcode labels is no longer marked experimental.
+- Service worker cache bumped to pantser-v11.
+
 ## [2026-10-23] [v1.5.0]
 - Added: a Check for updates button on the Info screen, under the version label. Tapping it forces the app to check for a newer version right away; when one is found, the button becomes Restart to update and one tap restarts the app into the new version. Saved labels and settings are not affected.
 - Service worker cache bumped to pantser-v10.

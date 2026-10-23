@@ -28,6 +28,23 @@ its UI programmatically and so does the web port.
   (default; confirm dialog), One press exit, Two press exit (second press
   within 2 seconds), Disable exit. From secondary views (Insights, Info,
   Settings), back returns to home.
+- Web v1.6.0: a wide layout activates on wide viewports (desktop
+  windows, landscape phones) via a CSS media query. The app column
+  constraint is lifted so the top bar and dock stretch edge to edge
+  (title centered, settings left, info right), page content is capped
+  in a centered column, and the home prompt, size input (a long
+  centered pill) and Create button are centered. The portrait phone
+  layout is byte-identical to before; Android is unaffected. In the
+  wide layout the home screen also carries the two-box and barcode
+  switches as cards at the top left, built by the same switch-row code
+  and bound to the same store keys as the Settings rows, so both
+  places always show the same state. While two_box has never been
+  set, it resolves to on in the wide layout and off otherwise; an
+  explicit user choice always wins. On desktop-sized viewports
+  (min-width 900px and min-height 501px) the first size input is
+  focused at startup, search-page style; a one-shot flag re-applies
+  the focus across startup re-renders and is disarmed by the user's
+  first key press or tap.
 - Web v1.5.0: the Info screen shows the running version under its pager
   dots, with a Check for updates button below it. The button forces an
   immediate update check (fresh version lookup plus a service-worker
@@ -228,7 +245,7 @@ settings). The web keeps the same grouping.
 - Two-box size input (web v1.3.0, switch, default off): classic mode home
   input becomes two boxes with an `x`; see 2.1. No effect in Advanced
   mode.
-- Barcode labels (experimental) (web v1.4.0, switch, default off): when
+- Barcode labels (web v1.4.0, switch, default off; marked experimental until v1.6.0): when
   on, generated sheets render each size as a Code 128 barcode (set B,
   the raw size text encoded exactly, spaces and case included) with the
   size printed underneath in plain text, instead of the large bold size

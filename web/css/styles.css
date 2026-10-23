@@ -70,6 +70,7 @@ body {
 .btn-update { font: inherit; font-size: 0.9rem; padding: 0.55rem 1.3rem; border-radius: 999px; border: 1px solid var(--muted); background: transparent; color: inherit; cursor: pointer; }
 .btn-update:disabled { opacity: 0.55; cursor: default; }
 .update-status { text-align: center; color: var(--muted); font-size: 0.85rem; min-height: 1.1em; margin: 0.5rem 0 0; }
+#home-chips { display: none; }
 .dots { display: flex; gap: 0.5rem; justify-content: center; padding: 0.75rem; }
 .dots span { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--muted); opacity: .4; }
 .dots span.on { opacity: 1; background: var(--acc); }
@@ -201,3 +202,45 @@ p { line-height: 1.55; }
   font-weight: 800; cursor: pointer;
 }
 .stepper .sv { font-weight: 700; color: var(--acc); min-width: 3rem; text-align: center; }
+
+/* v1.6.0: wide layout — desktop windows and landscape phones.
+   Every rule above stays exactly as-is; the rules below only apply
+   when the viewport is wide, where the 30rem phone column used to sit
+   tiny in the middle of the screen. The top bar and the bottom dock
+   stretch edge to edge with the title centered and the gear and info
+   buttons in the corners, page content gets a readable centered
+   column, and the home screen's size input becomes a long centered
+   pill (Google-search style) with the Create button under it. */
+@media (min-width: 900px), (orientation: landscape) and (min-width: 600px) and (max-height: 500px) {
+  #app { max-width: none; }
+  #topbar { position: relative; padding-left: 1.25rem; padding-right: 1.25rem; }
+  #topbar-title { position: absolute; left: 50%; transform: translateX(-50%); }
+  .page > * { max-width: 46rem; margin-left: auto; margin-right: auto; }
+  #view-home .prompt { text-align: center; font-size: 1.75rem; margin-top: 5vh; }
+  #view-home .layout-line, #view-home .privacy { text-align: center; }
+  #home-inputs { max-width: 40rem; }
+  #home-inputs input[type="text"] {
+    border-radius: 999px; padding: 1rem 1.5rem; font-size: 1.25rem;
+    box-shadow: 0 0.125rem 0.625rem rgba(0, 0, 0, .18);
+  }
+  #btn-jump { display: block; margin-left: auto; margin-right: auto; text-align: center; }
+  #btn-create {
+    display: block; width: auto; min-width: 16rem;
+    margin: 0.75rem auto 1rem; border-radius: 999px;
+    padding-left: 2.5rem; padding-right: 2.5rem;
+  }
+  #home-chips {
+    display: flex; flex-direction: column; gap: 0.5rem;
+    position: absolute; top: 1rem; left: 1rem; width: 17rem;
+    max-width: none; margin: 0; z-index: 2;
+  }
+  #home-chips .set-row { box-shadow: 0 0.125rem 0.5rem rgba(0, 0, 0, .12); }
+}
+
+/* Short landscape (phones): the home-screen cards go compact — title
+   and switch only — so they stay clear of the centered size boxes.
+   The full descriptions remain on desktop and in Settings. */
+@media (orientation: landscape) and (min-width: 600px) and (max-height: 500px) {
+  #home-chips { width: 15rem; }
+  #home-chips .set-row .s { display: none; }
+}

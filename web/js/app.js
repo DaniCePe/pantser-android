@@ -3,7 +3,7 @@
    Default theme only (Linear Modern + Ember Night); other styles and
    palettes are reserved slots. No em dashes in this file. */
 
-const APP_VERSION = '1.5.0';
+const APP_VERSION = '1.6.0';
 
 /* ---------------- i18n ---------------- */
 function langCode() {
@@ -565,6 +565,50 @@ function syncClassicFromTb() {
   classicMem = (tbMem[0] && tbMem[1]) ? tbMem[0] + ' x ' + tbMem[1] : (tbMem[0] || tbMem[1] || '');
 }
 
+/* The wide layout (desktop windows, landscape phones) mirrors the
+   CSS media query in styles.css. While the user has never touched the
+   two-box setting, it follows the layout: on for wide screens, off for
+   phones. The moment they flip it anywhere, that choice is stored and
+   wins everywhere. */
+const WIDE_MQ = '(min-width: 900px), (orientation: landscape) and (min-width: 600px) and (max-height: 500px)';
+function wideLayout() {
+  return !!(window.matchMedia && window.matchMedia(WIDE_MQ).matches);
+}
+function twoBoxOn() {
+  const v = Store.get('two_box', '');
+  if (v === 'true') return true;
+  if (v === 'false') return false;
+  return wideLayout();
+}
+
+/* Wide-layout home screen: the two-box and barcode switches as cards
+   at the top left, built by the same switchRow() and bound to the same
+   store keys as the Settings rows, so the two places always agree.
+   The container is display:none outside the wide media query. */
+/* Startup caret for wide screens (see init): re-applied after every
+   render because re-renders rebuild the inputs from scratch. */
+let startupFocusPending = false;
+function applyStartupFocus() {
+  if (!startupFocusPending) return;
+  const inp = document.querySelector('#home-inputs input');
+  if (inp && document.activeElement !== inp) {
+    try { inp.focus({ preventScroll: true }); }
+    catch (e) { inp.focus(); }
+  }
+}
+
+function renderHomeChips() {
+  applyStartupFocus();
+  const box = document.getElementById('home-chips');
+  if (!box) return;
+  box.innerHTML = '';
+  box.appendChild(switchRow(t('setting_two_box'), t('setting_two_box_sub'), twoBoxOn(),
+    function (on) { Store.set('two_box', on ? 'true' : 'false'); renderAll(); }));
+  box.appendChild(switchRow(t('setting_barcode'), t('setting_barcode_sub'),
+    Store.get('barcode', 'false') === 'true',
+    function (on) { Store.set('barcode', on ? 'true' : 'false'); renderAll(); }));
+}
+
 function renderHome() {
   document.getElementById('home-prompt').textContent = t('prompt_what_size');
   document.getElementById('home-layout').textContent = t('using_layout', Store.get('layout', '4x15'));
@@ -575,7 +619,7 @@ function renderHome() {
   const cols = layoutColsRows()[0];
   const jumpBtn = document.getElementById('btn-jump');
 
-  const twoBox = !advanced && Store.get('two_box', 'false') === 'true';
+  const twoBox = !advanced && twoBoxOn();
   if (!advanced && !twoBox) {
     wrap.classList.remove('row');
     const inp = document.createElement('input');
@@ -1042,7 +1086,7 @@ function renderSettings() {
     ], Store.get('advanced_mode', 'false'), function (k) { Store.set('advanced_mode', k); renderAll(); });
   }));
   u.appendChild(switchRow(t('setting_two_box'), t('setting_two_box_sub'),
-    Store.get('two_box', 'false') === 'true',
+    twoBoxOn(),
     function (on) { Store.set('two_box', on ? 'true' : 'false'); renderAll(); }));
   u.appendChild(switchRow(t('setting_barcode'), t('setting_barcode_sub'),
     Store.get('barcode', 'false') === 'true',
@@ -1211,6 +1255,7 @@ function renderAll() {
   applyStrings();
   applyScale();
   renderHome();
+  renderHomeChips();
   renderInsights();
   renderSettings();
   renderInfo();
@@ -1222,6 +1267,10 @@ async function init() {
   if (window.matchMedia) {
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () {
       if (Store.get('mode', 'system') === 'system') applyTheme();
+    });
+    const wideMq = window.matchMedia(WIDE_MQ);
+    if (wideMq.addEventListener) wideMq.addEventListener('change', function () {
+      if (Store.get('two_box', '') === '') renderAll();
     });
   }
   applyScale();
@@ -1271,6 +1320,21 @@ async function init() {
     navigator.serviceWorker.register('service-worker.js').catch(function () {});
   }
   showView('home', false);
+  /* Desktop-wide screens behave like a search page: the caret is
+     already waiting in the size box (the left box, in two-box mode)
+     when the app opens. Short landscape phones are excluded so the
+     touch keyboard does not pop up uninvited. Re-renders can rebuild
+     the inputs and throw the caret away (the browser's install prompt
+     arriving triggers one), so the wish is kept as a flag that
+     renderHomeChips() re-applies; the user's first real key press or
+     tap disarms it. */
+  if (window.matchMedia && window.matchMedia('(min-width: 900px) and (min-height: 501px)').matches) {
+    startupFocusPending = true;
+    const disarm = function () { startupFocusPending = false; };
+    document.addEventListener('pointerdown', disarm, true);
+    document.addEventListener('keydown', disarm, true);
+    applyStartupFocus();
+  }
 }
 
 document.addEventListener('DOMContentLoaded', init);

@@ -1,7 +1,7 @@
 /* Pantser PWA service worker. Offline-first: caches the app shell on
    install so the app opens and generates PDFs with no connection.
-   v1.5.0 adds a Check for updates button on the Info screen. */
-const CACHE = 'pantser-v10';
+   v1.6.0 adds a wide layout for desktop windows and landscape phones. */
+const CACHE = 'pantser-v11';
 const ASSETS = [
   './',
   './index.html',
