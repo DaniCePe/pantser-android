@@ -33,6 +33,9 @@ its UI programmatically and so does the web port.
   NOT-PORTED.md. Web v1.3.0: back from Insights returns home in the web
   build too (it previously fell through to the homescreen exit behavior);
   the configurable exit behavior applies on the home screen only.
+  Web v1.3.1: the main pager has a single controller (the view switcher);
+  the generic pager helper is only for the Settings and Info pagers, and
+  back handling verifies what is actually on screen before deciding.
 
 ## 2. Create flow
 
@@ -54,7 +57,11 @@ sizes in the `zz x yy` shape. The boxes are plain text inputs with
 `type="number"`, so leading zeros like `08` and a literal `00` survive;
 there is no ODD substitution). Typing a second digit moves focus to the
 next box; backspace on an empty box moves focus to the previous box;
-tapping a box clears just that box. Create joins the boxes as
+tapping a box clears just that box. A digit typed while the first box is
+already full (v1.3.1, e.g. right after backspace jumped back to it) is
+forwarded into the second box and focus moves there; there is no
+maxlength attribute, the two-digit cap is enforced while forwarding.
+Create joins the boxes as
 `<a> x <b>`. Enter in either box is Create Label. Non-numeric sizes are
 entered by turning the setting off. Advanced mode is unaffected.
 

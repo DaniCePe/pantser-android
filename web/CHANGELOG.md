@@ -2,6 +2,11 @@
 
 Every publishing ships with its own dated, versioned entry.
 
+## [2026-10-22] [v1.3.1]
+- Fixed: after swiping to Insights, the Android back button could exit the app instead of returning home. The main pager had two controllers (the generic pager helper and the view switcher) that could disagree about what was on screen; the view switcher is now the only one, and back handling also checks what is actually displayed. Tapping Insights and going back already worked; both paths now behave the same.
+- Fixed: in the two-box input, a digit typed while the first box was already full (for example right after backspace jumped back to it) was silently swallowed by the two-character limit. It is now typed into the second box instead, moving focus there.
+- Service worker cache bumped to pantser-v6.
+
 ## [2026-10-22] [v1.3.0]
 - New Utilities setting: "Two-box size input" (classic mode only). Two boxes with an x between them, like 32 x 30, using the phone's own number pad keyboard. Typing 2 digits moves to the next box, backspace on an empty box goes back, and tapping a box clears it. Advanced multi-column mode is unchanged.
 - New Appearance setting: "UI scale" stepper (minus / percent / plus, 5% steps, 50 to 200%), scaling the whole interface through the root font size.

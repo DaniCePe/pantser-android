@@ -365,7 +365,11 @@ function tryClose() {
      happens. Recorded in NOT-PORTED.md. */
 }
 function onBackPressed() {
-  if (currentView === 'settings' || currentView === 'info' || currentView === 'insights') { showView('home'); return; }
+  /* Belt and braces (v1.3.1): if Insights is what is actually on screen,
+     back goes home even if currentView somehow disagrees. */
+  const pagerEl = document.getElementById('pager');
+  const insightsOnScreen = pagerEl && pagerEl.style.transform.indexOf('-100%') >= 0;
+  if (currentView === 'settings' || currentView === 'info' || currentView === 'insights' || (currentView === 'home' && insightsOnScreen)) { showView('home'); return; }
   const b = Store.get('back_behavior', 'ask');
   if (b === 'ask') {
     showDialog({
@@ -480,7 +484,9 @@ function renderHome() {
       binp.type = 'text'; binp.id = 'tb-input-' + bi;
       binp.inputMode = 'numeric'; binp.setAttribute('pattern', '[0-9]*');
       binp.setAttribute('autocomplete', 'off');
-      binp.maxLength = 2;
+      /* No maxlength on purpose (v1.3.1): a digit typed into a full box
+         must reach the input handler so it can be forwarded to the next
+         box, instead of being silently swallowed by the character cap. */
       binp.value = tbMem[bi] || '';
       binp.placeholder = bi === 0 ? '32' : '30';
       binp.setAttribute('aria-label', t('hint_example'));
@@ -488,7 +494,23 @@ function renderHome() {
     }
     boxes.forEach(function (el, index) {
       el.addEventListener('input', function () {
-        el.value = el.value.replace(/\D/g, '').slice(0, 2);
+        let digits = el.value.replace(/\D/g, '');
+        if (index === 0 && digits.length > 2) {
+          /* First box is full (for example after backspace jumped back to
+             it): forward the extra digit into the second box and move
+             focus there, like typing had just continued across (v1.3.1). */
+          const extra = digits.slice(2);
+          digits = digits.slice(0, 2);
+          el.value = digits; tbMem[0] = digits;
+          const next = boxes[1];
+          next.value = (next.value + extra).slice(0, 2);
+          tbMem[1] = next.value;
+          syncClassicFromTb(); saveDrafts();
+          next.focus();
+          try { next.setSelectionRange(next.value.length, next.value.length); } catch (err) {}
+          return;
+        }
+        el.value = digits.slice(0, 2);
         tbMem[index] = el.value;
         syncClassicFromTb(); saveDrafts();
         if (index === 0 && el.value.length === 2) {
@@ -989,7 +1011,11 @@ async function init() {
   }
   applyScale();
   renderAll();
-  makePager(document.getElementById('pager'), null);
+  /* The main pager is NOT a makePager (v1.3.1): showView owns its
+     transform and currentView. Two controllers could desync (swiping to
+     Insights moved the pager visually while back handling trusted the
+     other controller's state, and back exited the app). makePager below
+     remains only for the Settings and Info dot pagers. */
   makePager(document.getElementById('settings-pager'), document.getElementById('settings-dots'));
   makePager(document.getElementById('info-pager'), document.getElementById('info-dots'));
 
