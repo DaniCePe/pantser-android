@@ -11,6 +11,7 @@ import android.net.Uri
 import android.os.*
 import android.print.*
 import android.text.Editable
+import android.text.InputType
 import android.text.TextWatcher
 import android.view.Gravity
 import android.view.KeyEvent
@@ -47,6 +48,9 @@ class MainActivity : AppCompatActivity() {
     private var exportRecord: AppStore.LabelRecord? = null
     private val advancedInputs = mutableListOf<EditText>()
     private var savedInputText = ""
+    private var savedTbFirst = ""
+    private var savedTbSecond = ""
+    private var createAction: (() -> Unit)? = null
     private val savedAdvancedInputs = mutableMapOf<Int, String>()
     private var currentNav = 0
     private var lastBackPressTime = 0L
@@ -77,6 +81,36 @@ class MainActivity : AppCompatActivity() {
                 toast(getString(R.string.toast_export_failed, e.message))
             }
         }
+    }
+
+    // UI scale: sp text sizes resolve through getResources(), so serving
+    // resources with a scaled fontScale here scales all text, and the dp()
+    // helper applies the same factor to layout dimensions.
+    // NOTE: do NOT do this by wrapping the base context in
+    // attachBaseContext (createConfigurationContext). That breaks the
+    // activity identity of the base context, and PrintManager.print()
+    // then throws IllegalStateException ("Can print only from an
+    // activity") even though the call comes from the activity itself.
+    private var scaledResources: android.content.res.Resources? = null
+    private var scaledResourcesKey: String? = null
+
+    override fun getResources(): android.content.res.Resources {
+        val base = super.getResources()
+        val pct = try {
+            baseContext?.getSharedPreferences("label_store", Context.MODE_PRIVATE)
+                ?.getString("ui_scale", "100")?.toFloatOrNull() ?: 100f
+        } catch (e: Exception) { 100f }
+        if (pct == 100f) return base
+        val key = listOf(pct, base.configuration.densityDpi, base.configuration.uiMode,
+            base.configuration.orientation, base.displayMetrics.widthPixels).joinToString("|")
+        val cached = scaledResources
+        if (cached != null && scaledResourcesKey == key) return cached
+        val config = Configuration(base.configuration)
+        config.fontScale = (pct / 100f).coerceIn(0.5f, 2.0f)
+        val scaled = createConfigurationContext(config).resources
+        scaledResources = scaled
+        scaledResourcesKey = key
+        return scaled
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -136,7 +170,16 @@ class MainActivity : AppCompatActivity() {
             }
         })
         buildShell()
-        showHome()
+        // After a settings change that recreates the activity (theme,
+        // language, UI scale), land back in Settings on the page the
+        // user was on instead of ejecting them to the home screen.
+        val resume = store.setting("resume_view", "")
+        if (resume.isNotEmpty()) store.setSetting("resume_view", "")
+        if (resume.startsWith("settings")) {
+            showSettings(resume.substringAfter(":", "0").toIntOrNull() ?: 0)
+        } else {
+            showHome()
+        }
     }
 
     override fun onResume() {
@@ -264,32 +307,10 @@ class MainActivity : AppCompatActivity() {
     private fun homeView(): View {
         val scroll = ScrollView(this).apply { isVerticalScrollBarEnabled = false }
         val page = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(4), dp(16), dp(16)) }
-        val mascot = TextView(this).apply { text = when {
-            isRetro() -> "📟"
-            isTerminal() -> ">_"
-            isBauhaus() -> "●"
-            isDopamine() -> "✨"
-            else -> "🐈‍⬛"
-        }; textSize = 22f; gravity = Gravity.CENTER; setPadding(0, dp(2), 0, dp(2)) }
-        page.addView(mascot)
-
-        ViewCompat.setOnApplyWindowInsetsListener(page) { _, insets ->
-            val imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime()) || insets.getInsets(WindowInsetsCompat.Type.ime()).bottom > dp(50)
-            mascot.visibility = if (imeVisible) View.GONE else View.VISIBLE
-            insets
-        }
-
-        val hideMascotOnFocus = View.OnFocusChangeListener { _, hasFocus ->
-            if (hasFocus) {
-                mascot.visibility = View.GONE
-            }
-        }
-
         val layout = store.setting("layout", "4x15")
         page.addView(TextView(this).apply { text = getString(R.string.using_layout, layout); textSize = 18f; setTextColor(acc()); setTypeface(if (isTerminal()) Typeface.MONOSPACE else null, Typeface.BOLD); setPadding(0, dp(8), 0, dp(4)) })
         page.addView(TextView(this).apply { text = getString(R.string.privacy_note); textSize = 13f; setTextColor(textColor()); if (isTerminal()) setTypeface(Typeface.MONOSPACE); setPadding(0, 0, 0, dp(16)) })
-        val input = EditText(this).apply { 
-            hint = getString(R.string.hint_example)
+        val input = EditText(this).apply {
             textSize = 16f
             setSingleLine(true)
             setTextColor(textColor())
@@ -300,21 +321,112 @@ class MainActivity : AppCompatActivity() {
                 isRetro() -> insetRetro(if (isDark()) surf() else Color.WHITE)
                 else -> round(if (isDark()) surf() else Color.WHITE, 10)
             }
+            if (!isRetro() && !isBauhaus() && !isTerminal() && !isDopamine()) {
+                (background as? GradientDrawable)?.setStroke(dp(2), textColor())
+            }
             imeOptions = EditorInfo.IME_ACTION_DONE
+            setOnEditorActionListener { _, actionId, _ ->
+                if (actionId == EditorInfo.IME_ACTION_DONE) { createAction?.invoke(); true } else false
+            }
             setText(savedInputText)
             if (savedInputText.isNotEmpty()) setSelection(savedInputText.length)
-            onFocusChangeListener = hideMascotOnFocus
             addTextChangedListener(object : TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
                 override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
                 override fun afterTextChanged(s: Editable?) {
                     savedInputText = s?.toString() ?: ""
+                    val m = Regex("^\\s*(.*?)\\s*[xX]\\s*(.*?)\\s*$").find(savedInputText)
+                    if (m != null) { savedTbFirst = m.groupValues[1]; savedTbSecond = m.groupValues[2] }
                 }
             })
         }
         page.addView(input, LinearLayout.LayoutParams(-1, dp(48)))
 
         val isAdvEnabled = store.setting("advanced_mode", "false") == "true"
+        // Two-box classic input (port of the web app's v1.3.0 feature,
+        // including its v1.3.1 digit-forwarding behaviour): two numeric
+        // boxes with an x between them replace the single classic field
+        // when the Utilities setting is on. Classic mode only.
+        val twoBoxEnabled = store.setting("two_box", "false") == "true"
+        if (twoBoxEnabled && !isAdvEnabled) {
+            input.visibility = View.GONE
+            if (savedTbFirst.isEmpty() && savedTbSecond.isEmpty() && savedInputText.isNotEmpty()) {
+                val m = Regex("^\\s*(.*?)\\s*[xX]\\s*(.*?)\\s*$").find(savedInputText)
+                if (m != null) { savedTbFirst = m.groupValues[1]; savedTbSecond = m.groupValues[2] }
+            }
+            val first = EditText(this)
+            val second = EditText(this)
+            var suppressTb = false
+            fun styleTb(et: EditText) {
+                et.textSize = 16f
+                et.setSingleLine(true)
+                et.setTextColor(textColor())
+                et.setHintTextColor(muted())
+                if (isTerminal()) et.setTypeface(Typeface.MONOSPACE)
+                et.setPadding(dp(14), dp(12), dp(14), dp(12))
+                et.gravity = Gravity.CENTER
+                et.background = when {
+                    isRetro() -> insetRetro(if (isDark()) surf() else Color.WHITE)
+                    else -> round(if (isDark()) surf() else Color.WHITE, 10)
+                }
+                if (!isRetro() && !isBauhaus() && !isTerminal() && !isDopamine()) {
+                    (et.background as? GradientDrawable)?.setStroke(dp(2), textColor())
+                }
+                et.inputType = InputType.TYPE_CLASS_NUMBER
+                et.imeOptions = EditorInfo.IME_ACTION_DONE
+                et.setOnEditorActionListener { _, actionId, _ ->
+                    if (actionId == EditorInfo.IME_ACTION_DONE) { createAction?.invoke(); true } else false
+                }
+            }
+            styleTb(first); styleTb(second)
+            suppressTb = true
+            first.setText(savedTbFirst); if (savedTbFirst.isNotEmpty()) first.setSelection(savedTbFirst.length)
+            second.setText(savedTbSecond); if (savedTbSecond.isNotEmpty()) second.setSelection(savedTbSecond.length)
+            suppressTb = false
+            first.addTextChangedListener(object : TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+                override fun afterTextChanged(s: Editable?) {
+                    if (suppressTb) return
+                    val v = s?.toString() ?: ""
+                    if (v.length > 2) {
+                        // First box full: forward the extra digit into
+                        // the second box and move focus there.
+                        val extra = v.substring(2, 3)
+                        suppressTb = true
+                        first.setText(v.substring(0, 2)); first.setSelection(2)
+                        if (second.text.length < 2) second.setText(second.text.toString() + extra)
+                        suppressTb = false
+                        second.requestFocus(); second.setSelection(second.text.length)
+                    } else if (v.length == 2) {
+                        second.requestFocus(); second.setSelection(second.text.length)
+                    }
+                    savedTbFirst = first.text.toString(); savedTbSecond = second.text.toString()
+                    savedInputText = combinedFromTb()
+                }
+            })
+            second.addTextChangedListener(object : TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+                override fun afterTextChanged(s: Editable?) {
+                    if (suppressTb) return
+                    savedTbFirst = first.text.toString(); savedTbSecond = second.text.toString()
+                    savedInputText = combinedFromTb()
+                }
+            })
+            second.setOnKeyListener { _, keyCode, event ->
+                if (keyCode == KeyEvent.KEYCODE_DEL && event.action == KeyEvent.ACTION_DOWN && second.text.isEmpty()) {
+                    first.requestFocus(); first.setSelection(first.text.length); true
+                } else false
+            }
+            first.setOnClickListener { if (first.text.isNotEmpty()) { suppressTb = true; first.setText(""); suppressTb = false; savedTbFirst = ""; savedInputText = combinedFromTb() } }
+            second.setOnClickListener { if (second.text.isNotEmpty()) { suppressTb = true; second.setText(""); suppressTb = false; savedTbSecond = ""; savedInputText = combinedFromTb() } }
+            val tbRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+            tbRow.addView(first, LinearLayout.LayoutParams(0, dp(48), 1f))
+            tbRow.addView(TextView(this).apply { text = "x"; textSize = 18f; setTextColor(muted()); gravity = Gravity.CENTER; setPadding(dp(8), 0, dp(8), 0) })
+            tbRow.addView(second, LinearLayout.LayoutParams(0, dp(48), 1f))
+            page.addView(tbRow, 3)
+        }
         val advContainer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             visibility = if (isAdvEnabled) View.VISIBLE else View.GONE
@@ -389,8 +501,7 @@ class MainActivity : AppCompatActivity() {
                     if (isTerminal()) setTypeface(Typeface.MONOSPACE)
                     setText(initialVal)
                     if (initialVal.isNotEmpty()) setSelection(initialVal.length)
-                    onFocusChangeListener = hideMascotOnFocus
-                    addTextChangedListener(object : TextWatcher {
+                            addTextChangedListener(object : TextWatcher {
                         override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
                         override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
                         override fun afterTextChanged(s: Editable?) {
@@ -434,22 +545,34 @@ class MainActivity : AppCompatActivity() {
                 isTerminal() -> round(Color.BLACK, 0).apply { setStroke(dp(1), acc()) }
                 else -> round(acc(), 10)
             }
-            setOnClickListener { 
-                val size = if (isAdvEnabled) {
+            val doCreate: () -> Unit = {
+                // Read the size first: in two-box mode it is computed
+                // from the draft fields, so clearing them first would
+                // wipe the very text being created.
+                val size: String? = if (isAdvEnabled) {
                     val vals = advancedInputs.map { it.text.toString().trim() }
-                    if (vals.any { it.isEmpty() }) { toast(getString(R.string.err_invalid_column)); return@setOnClickListener }
-                    vals.joinToString("|")
+                    if (vals.any { it.isEmpty() }) { toast(getString(R.string.err_invalid_column)); null } else vals.joinToString("|")
+                } else if (twoBoxEnabled) {
+                    combinedFromTb()
                 } else {
                     input.text.toString()
                 }
-                createLabel(size) 
-            } 
+                // Session drafts clear the moment Create is pressed
+                // (mirrors the web app), even if validation then fails.
+                savedInputText = ""
+                savedAdvancedInputs.clear()
+                savedTbFirst = ""
+                savedTbSecond = ""
+                if (size != null) createLabel(size)
+            }
+            createAction = doCreate
+            setOnClickListener { doCreate() }
         }
         val cp = LinearLayout.LayoutParams(-1, dp(48)); cp.setMargins(0, dp(12), 0, dp(16)); page.addView(create, cp)
         page.addView(heading(getString(R.string.quick_print_title)))
         val isLastUsed = store.setting("quick_print_sort", "last") == "last"
         val records = store.records().filter { it.printCount > 0 }
-        val frequent = if (isLastUsed) { records.sortedByDescending { it.lastPrintedAt } } else { records.sortedByDescending { it.printCount } }.distinctBy { store.normalizeSize(it.size) }.take(8)
+        val frequent = if (isLastUsed) { records.sortedByDescending { it.lastPrintedAt } } else { records.sortedByDescending { it.printCount } }.distinctBy { it.size }.take(8)
         if (frequent.isEmpty()) page.addView(TextView(this).apply { text = getString(R.string.no_recent_labels); textSize = 13f; setTextColor(muted()); if (isTerminal()) setTypeface(Typeface.MONOSPACE); setPadding(dp(4), dp(4), 0, dp(12)) })
         frequent.forEach { record ->
             val row = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(dp(14), dp(8), dp(14), dp(8)); background = if (isRetro()) outsetRetro(surf()) else round(surf(), 10) }
@@ -484,6 +607,16 @@ class MainActivity : AppCompatActivity() {
         return scroll
     }
 
+    private fun combinedFromTb(): String {
+        val a = savedTbFirst; val b = savedTbSecond
+        return when {
+            a.isEmpty() && b.isEmpty() -> ""
+            b.isEmpty() -> a
+            a.isEmpty() -> " x $b"
+            else -> "$a x $b"
+        }
+    }
+
     private fun showHome() {
         currentNav = 0
         content.removeAllViews()
@@ -516,7 +649,7 @@ class MainActivity : AppCompatActivity() {
         }.start()
     }
 
-    private fun setupPager(pages: List<View>) {
+    private fun setupPager(pages: List<View>, footer: String? = null, initialPage: Int = 0) {
         val pager = ViewPager2(this).apply {
             adapter = ViewPagerAdapter(pages)
             orientation = ViewPager2.ORIENTATION_HORIZONTAL
@@ -542,8 +675,16 @@ class MainActivity : AppCompatActivity() {
         pager.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
             override fun onPageSelected(position: Int) { updateDots(position) }
         })
-        updateDots(0)
-        val wrap = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; addView(pager, LinearLayout.LayoutParams(-1, 0, 1f)); addView(indicator, LinearLayout.LayoutParams(-1, -2)) }
+        if (initialPage in pages.indices && initialPage != 0) pager.currentItem = initialPage
+        updateDots(initialPage)
+        val wrap = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(pager, LinearLayout.LayoutParams(-1, 0, 1f))
+            addView(indicator, LinearLayout.LayoutParams(-1, -2))
+            if (footer != null) {
+                addView(TextView(this@MainActivity).apply { text = footer; textSize = 12f; setTextColor(muted()); gravity = Gravity.CENTER; if (isTerminal()) setTypeface(Typeface.MONOSPACE); setPadding(0, dp(2), 0, dp(10)) }, LinearLayout.LayoutParams(-1, -2))
+            }
+        }
         content.addView(wrap, FrameLayout.LayoutParams(-1, -1))
     }
 
@@ -635,7 +776,14 @@ class MainActivity : AppCompatActivity() {
                 finally { destination.close() }
             }
         }
-        manager.print("Pant Size · ${record.size}", adapter, PrintAttributes.Builder().setMediaSize(PrintAttributes.MediaSize.NA_LETTER).build())
+        try {
+            manager.print("Pant Size · ${record.size}", adapter, PrintAttributes.Builder().setMediaSize(PrintAttributes.MediaSize.NA_LETTER).build())
+        } catch (e: Exception) {
+            // Keep the exact failure visible while this is diagnosed:
+            // the exception's class name rides along in the message.
+            android.util.Log.e("PantserPrint", "manager.print failed", e)
+            toast(getString(R.string.err_print_unavailable) + " [" + e.javaClass.simpleName + "]")
+        }
     }
 
     private fun showInfo() {
@@ -655,10 +803,11 @@ class MainActivity : AppCompatActivity() {
         p3.addView(subheading(getString(R.string.manual_settings_title)))
         p3.addView(body(getString(R.string.manual_settings_body)))
         val pages = listOf(p1, p2, p3).map { ScrollView(this).apply { isVerticalScrollBarEnabled = false; addView(it) } }
-        setupPager(pages)
+        val versionLabel = "v" + (try { packageManager.getPackageInfo(packageName, 0).versionName } catch (e: Exception) { null } ?: "")
+        setupPager(pages, versionLabel)
     }
 
-    private fun showSettings() {
+    private fun showSettings(initialPage: Int = 0) {
         currentNav = 3
         updateNavTint(3)
         content.removeAllViews()
@@ -692,6 +841,10 @@ class MainActivity : AppCompatActivity() {
             store.setSetting("advanced_mode", if (isAdv) "false" else "true")
             setupMainPager(); showSettings()
         }
+        switchItem(p1, getString(R.string.setting_two_box), getString(R.string.setting_two_box_sub), store.setting("two_box", "false") == "true") {
+            store.setSetting("two_box", it.toString())
+            setupMainPager()
+        }
         settingItem(p1, getString(R.string.setting_layout), layoutStr) { chooseLayout() }
         settingItem(p1, getString(R.string.setting_export), getString(R.string.setting_export_sub)) { chooseExport() }
         val p2 = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(14), dp(6), dp(14), dp(24)) }
@@ -716,8 +869,20 @@ class MainActivity : AppCompatActivity() {
             "dopamine" -> getString(R.string.style_dopamine)
             else -> getString(R.string.style_modern)
         }) { chooseUiStyle() }
+        // UI scale stepper (port of the web app's v1.3.0 setting):
+        // 50% to 200% in 5% steps, applied via getResources() fontScale
+        // and dp(); changing it recreates the activity.
+        val scalePct = store.setting("ui_scale", "100").toIntOrNull() ?: 100
+        val scaleRow = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(dp(14), dp(10), dp(14), dp(10)); background = if (isRetro()) outsetRetro(surf()) else round(surf(), 10) }
+        val scaleCol = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        scaleCol.addView(TextView(this).apply { text = getString(R.string.setting_ui_scale); textSize = 15f; setTextColor(textColor()); setTypeface(if (isTerminal()) Typeface.MONOSPACE else null, Typeface.BOLD) })
+        scaleCol.addView(TextView(this).apply { text = "$scalePct%"; textSize = 12f; setTextColor(muted()); if (isTerminal()) setTypeface(Typeface.MONOSPACE) })
+        scaleRow.addView(scaleCol, LinearLayout.LayoutParams(0, -2, 1f))
+        scaleRow.addView(Button(this).apply { text = "\u2212"; setOnClickListener { val v = ((store.setting("ui_scale", "100").toIntOrNull() ?: 100) - 5).coerceIn(50, 200); store.setSetting("ui_scale", v.toString()); store.setSetting("resume_view", "settings:2"); recreate() } }, LinearLayout.LayoutParams(dp(48), dp(40)))
+        scaleRow.addView(Button(this).apply { text = "+"; setOnClickListener { val v = ((store.setting("ui_scale", "100").toIntOrNull() ?: 100) + 5).coerceIn(50, 200); store.setSetting("ui_scale", v.toString()); store.setSetting("resume_view", "settings:2"); recreate() } }, LinearLayout.LayoutParams(dp(48), dp(40)))
+        val scaleLp = LinearLayout.LayoutParams(-1, -2); scaleLp.setMargins(0, 0, 0, dp(6)); p3.addView(scaleRow, scaleLp)
         val pages = listOf(p1, p2, p3).map { ScrollView(this).apply { isVerticalScrollBarEnabled = false; addView(it) } }
-        setupPager(pages)
+        setupPager(pages, null, initialPage)
     }
 
     private fun settingItem(parent: LinearLayout, title: String, sub: String, onClick: () -> Unit) {
@@ -763,9 +928,9 @@ class MainActivity : AppCompatActivity() {
             }
             .show()
     }
-    private fun chooseMode() { val values = arrayOf(getString(R.string.mode_system), getString(R.string.mode_light), getString(R.string.mode_dark)); val current = listOf("system", "light", "dark").indexOf(store.setting("mode", "system")); AlertDialog.Builder(this).setTitle(getString(R.string.setting_theme_mode)).setSingleChoiceItems(values, current) { d, w -> store.setSetting("mode", listOf("system", "light", "dark")[w]); d.dismiss(); recreate() }.show() }
-    private fun choosePalette() { val values = Palette.entries.map { it.title }.toTypedArray(); val current = Palette.entries.indexOf(palette); AlertDialog.Builder(this).setTitle(getString(R.string.setting_theme_palette)).setSingleChoiceItems(values, current) { d, w -> store.setSetting("palette", Palette.entries[w].name); d.dismiss(); recreate() }.show() }
-    private fun chooseUiStyle() { val options = arrayOf(getString(R.string.style_modern), getString(R.string.style_retro), getString(R.string.style_bauhaus), getString(R.string.style_terminal), getString(R.string.style_dopamine)); val values = arrayOf("modern", "retro", "bauhaus", "terminal", "dopamine"); val current = values.indexOf(store.setting("ui_style", "modern")); AlertDialog.Builder(this).setTitle(getString(R.string.setting_theme_style)).setSingleChoiceItems(options, current) { d, w -> store.setSetting("ui_style", values[w]); d.dismiss(); recreate() }.show() }
+    private fun chooseMode() { val values = arrayOf(getString(R.string.mode_system), getString(R.string.mode_light), getString(R.string.mode_dark)); val current = listOf("system", "light", "dark").indexOf(store.setting("mode", "system")); AlertDialog.Builder(this).setTitle(getString(R.string.setting_theme_mode)).setSingleChoiceItems(values, current) { d, w -> store.setSetting("mode", listOf("system", "light", "dark")[w]); d.dismiss(); store.setSetting("resume_view", "settings:2"); recreate() }.show() }
+    private fun choosePalette() { val values = Palette.entries.map { it.title }.toTypedArray(); val current = Palette.entries.indexOf(palette); AlertDialog.Builder(this).setTitle(getString(R.string.setting_theme_palette)).setSingleChoiceItems(values, current) { d, w -> store.setSetting("palette", Palette.entries[w].name); d.dismiss(); store.setSetting("resume_view", "settings:2"); recreate() }.show() }
+    private fun chooseUiStyle() { val options = arrayOf(getString(R.string.style_modern), getString(R.string.style_retro), getString(R.string.style_bauhaus), getString(R.string.style_terminal), getString(R.string.style_dopamine)); val values = arrayOf("modern", "retro", "bauhaus", "terminal", "dopamine"); val current = values.indexOf(store.setting("ui_style", "modern")); AlertDialog.Builder(this).setTitle(getString(R.string.setting_theme_style)).setSingleChoiceItems(options, current) { d, w -> store.setSetting("ui_style", values[w]); d.dismiss(); store.setSetting("resume_view", "settings:2"); recreate() }.show() }
     private fun chooseDeleteAge() { val values = arrayOf(getString(R.string.delete_7_days), getString(R.string.delete_30_days), getString(R.string.delete_90_days), getString(R.string.delete_all)); AlertDialog.Builder(this).setTitle(getString(R.string.setting_delete_old)).setItems(values) { _, w -> val cutoff = if (w == 3) Long.MAX_VALUE else System.currentTimeMillis() - longArrayOf(7, 30, 90)[w] * 86_400_000L; val count = if (w == 3) { val n = store.records().size; store.records().forEach { store.remove(it.id) }; store.pdfDirectory().listFiles()?.forEach { it.delete() }; n } else store.removeOlderThan(cutoff); toast(getString(R.string.toast_deleted, count, if (count == 1) "" else "s")); showSettings() }.show() }
     private fun chooseExport() { val records = store.records(); if (records.isEmpty()) { toast(getString(R.string.toast_no_pdfs)); return }; val labels = records.map { "${it.size} · ${DateFormat.getDateInstance().format(Date(it.createdAt))}" }.toTypedArray(); AlertDialog.Builder(this).setTitle(getString(R.string.setting_export)).setItems(labels) { _, which -> exportRecord = records[which]; exportLauncher.launch(Intent(Intent.ACTION_CREATE_DOCUMENT).apply { type = "application/pdf"; putExtra(Intent.EXTRA_TITLE, records[which].fileName) }) }.show() }
     
@@ -777,6 +942,7 @@ class MainActivity : AppCompatActivity() {
             store.setSetting("lang", values[w])
             d.dismiss()
             AppCompatDelegate.setApplicationLocales(if (values[w] == "system") LocaleListCompat.getEmptyLocaleList() else LocaleListCompat.forLanguageTags(values[w]))
+            store.setSetting("resume_view", "settings:0")
             recreate()
         }.show()
     }
@@ -827,7 +993,11 @@ class MainActivity : AppCompatActivity() {
     private fun textColor() = if (isRetro()) { if (isDark()) Color.WHITE else Color.BLACK } else (if (isDark()) Color.WHITE else Color.parseColor("#1C1625"))
     private fun muted() = if (isRetro()) { if (isDark()) Color.parseColor("#A0A0A0") else Color.parseColor("#808080") } else (if (isDark()) Color.parseColor("#8A8F98") else Color.parseColor("#63535C"))
     private fun isDark(): Boolean { val mode = store.setting("mode", "system"); return if (mode == "system") (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES else mode == "dark" }
-    private fun dp(value: Int) = (value * resources.displayMetrics.density).roundToInt()
+    private fun uiScaleFactor(): Float {
+        val pct = if (::store.isInitialized) store.setting("ui_scale", "100").toFloatOrNull() else null
+        return ((pct ?: 100f) / 100f).coerceIn(0.5f, 2.0f)
+    }
+    private fun dp(value: Int) = (value * resources.displayMetrics.density * uiScaleFactor()).roundToInt()
     private fun toast(text: String) = Toast.makeText(this, text, Toast.LENGTH_SHORT).show()
     private fun formatBytes(bytes: Long): String = if (bytes < 1024) "$bytes B" else if (bytes < 1024 * 1024) "${bytes / 1024} KB" else "${bytes / (1024 * 1024)} MB"
 }

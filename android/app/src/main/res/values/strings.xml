@@ -49,6 +49,10 @@
     <string name="sort_last_used">Last Used</string>
     <string name="sort_freq_used">Frequently Used</string>
     <string name="setting_back_behavior">Back button on homescreen</string>
+    <string name="setting_two_box">Two-box input</string>
+    <string name="setting_two_box_sub">Type classic sizes in two boxes: waist x length</string>
+    <string name="setting_ui_scale">UI scale</string>
+    <string name="err_print_unavailable">Printing is not available on this device</string>
     <string name="back_behavior_ask">Ask user</string>
     <string name="back_behavior_one_press">One press exit</string>
     <string name="back_behavior_two_press">Two press exit</string>

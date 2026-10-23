@@ -40,24 +40,43 @@ class AppStore(context: Context) {
         }
     }
 
-    fun normalizeSize(size: String): String {
-        return size.lowercase().split("|").joinToString("|") { it.replace("\\s+".toRegex(), "") }
+    /* Raw size identity (mirrors the web app since its v1.3.0): a size is
+       identified by its exact string as entered (createLabel already
+       outer-trims). "32 x32", "32 x 32" and "32 X 32" are different sizes
+       with different PDFs. normalizeSize was removed for this. */
+    fun strictKey(size: String): String = size
+
+    private fun javaHash(s: String): Int {
+        var h = 0
+        for (ch in s) h = 31 * h + ch.code
+        return h
     }
 
     fun fileNameForSize(size: String): String {
-        val clean = normalizeSize(size).replace("|", "_")
-        return if (clean.length > 50) "size_adv_${clean.hashCode()}.pdf" else "size_$clean.pdf"
+        /* Keep [A-Za-z0-9], replace runs of anything else with one
+           underscore, strip edge underscores. A name that lost
+           information (spacing, case is kept, punctuation) gets a hash
+           suffix so distinct raw sizes never share a file. */
+        val clean = size.replace("[^A-Za-z0-9]+".toRegex(), "_").trim('_')
+        val converted = size.replace(' ', '_')
+        val lossy = converted != clean
+        if (clean.length > 50) return "size_adv_${javaHash(size)}.pdf"
+        if (lossy) return "size_${clean}_${javaHash(size)}.pdf"
+        return "size_$clean.pdf"
     }
 
     fun findRecordForSize(size: String): LabelRecord? {
-        val norm = normalizeSize(size)
-        return records().find { normalizeSize(it.size) == norm }
+        return records().find { it.size == size }
     }
 
     private fun cleanupDuplicates() {
+        /* Consolidate on the raw key: only records for the exact same
+           size string merge; every record's file is migrated to the
+           raw-derived file name (records merged by the old normalized
+           naming stay as they are, as their own entries). */
         val all = records()
         if (all.isEmpty()) return
-        val groups = all.groupBy { normalizeSize(it.size) }
+        val groups = all.groupBy { strictKey(it.size) }
         var changed = false
         val consolidated = mutableListOf<LabelRecord>()
         
@@ -134,9 +153,8 @@ class AppStore(context: Context) {
     fun recordCreation(size: String) {
         val unique = try { JSONArray(prefs.getString("unique_sizes", "[]")) } catch (_: Exception) { JSONArray() }
         var found = false
-        val norm = normalizeSize(size)
-        for (i in 0 until unique.length()) { 
-            if (normalizeSize(unique.getString(i)) == norm) found = true 
+        for (i in 0 until unique.length()) {
+            if (unique.getString(i) == size) found = true
         }
         if (!found) {
             unique.put(size)

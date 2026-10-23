@@ -49,6 +49,10 @@
     <string name="sort_last_used">Último uso</string>
     <string name="sort_freq_used">Más frecuente</string>
     <string name="setting_back_behavior">Botón de retroceso en inicio</string>
+    <string name="setting_two_box">Entrada de dos casillas</string>
+    <string name="setting_two_box_sub">Escribe las tallas clásicas en dos casillas: cintura x largo</string>
+    <string name="setting_ui_scale">Escala de interfaz</string>
+    <string name="err_print_unavailable">La impresión no está disponible en este dispositivo</string>
     <string name="back_behavior_ask">Preguntar al usuario</string>
     <string name="back_behavior_one_press">Salir con una pulsación</string>
     <string name="back_behavior_two_press">Salir con dos pulsaciones</string>
