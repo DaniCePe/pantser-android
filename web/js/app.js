@@ -3,7 +3,7 @@
    Default theme only (Linear Modern + Ember Night); other styles and
    palettes are reserved slots. No em dashes in this file. */
 
-const APP_VERSION = '1.4.0';
+const APP_VERSION = '1.4.1';
 
 /* ---------------- i18n ---------------- */
 function langCode() {
@@ -158,12 +158,18 @@ async function generatePdf(sizeTexts, barcode) {
            on both sides so scanners can lock on. */
         let modules = 0;
         runs.forEach(function (w) { modules += w; });
-        const moduleW = Math.min((cw * 0.94) / (modules + 20), 2.6);
-        const codeW = moduleW * (modules + 20);
         let capSize = 11;
         while (capSize > 6 && fontReg.widthOfTextAtSize(txt, capSize) > cw * 0.94) capSize -= 0.5;
-        const barH = Math.min(ch * 0.5, 30);
         const gap = 3;
+        /* Taller and narrower than the text-label footprint, closer to
+           a grocery-store barcode: bars take most of the cell height,
+           and the total width targets about 3.2x the bar height instead
+           of stretching to fill the cell. The module width keeps a
+           floor so long sizes stay printable and scannable. */
+        const barH = Math.min(ch * 0.66, 36, ch - gap - capSize - 1);
+        const moduleW = Math.min((cw * 0.94) / (modules + 20), 2.6,
+          Math.max(0.6, (barH * 3.2) / (modules + 20)));
+        const codeW = moduleW * (modules + 20);
         const blockH = barH + gap + capSize;
         const topEdge = T + r * ch + (ch - blockH) / 2;
         let bx = L + c * cw + (cw - codeW) / 2 + 10 * moduleW;

@@ -2,6 +2,10 @@
 
 Every publishing ships with its own dated, versioned entry.
 
+## [2026-10-23] [v1.4.1]
+- Adjusted: barcode labels are now taller and narrower, closer to a grocery-store barcode. The bars take up most of each cell's height and the code no longer stretches to fill the cell's width.
+- Service worker cache bumped to pantser-v9.
+
 ## [2026-10-23] [v1.4.0]
 - New Utilities setting: "Barcode labels (experimental)" (switch, default off). When on, label sheets render each size as a Code 128 barcode with the size printed underneath in plain text, on the same page, margins and grid as text labels. The size is encoded exactly as typed (spaces and letter case included), in classic and Advanced mode alike.
 - A size can now exist twice in history: once as a text label and once as a barcode label. They are kept as separate records, the quick-print tray marks barcode entries and reprints each entry in its own kind, and the startup duplicate cleanup no longer merges the two kinds together.
