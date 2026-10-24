@@ -109,4 +109,7 @@
 
     <string name="lang_en">English</string>
     <string name="lang_es">Español</string>
+    <string name="setting_barcode">Barcode labels</string>
+    <string name="setting_barcode_sub">Label sheets become Code 128 barcodes with the size printed under each one.</string>
+    <string name="label_barcode_tag">Barcode</string>
 </resources>

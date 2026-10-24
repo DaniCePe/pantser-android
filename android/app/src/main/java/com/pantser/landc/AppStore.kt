@@ -13,7 +13,11 @@ class AppStore(context: Context) {
         val fileName: String,
         val createdAt: Long,
         val printCount: Int = 0,
-        val lastPrintedAt: Long = 0L
+        val lastPrintedAt: Long = 0L,
+        /* Mirrors the web app's kind field (v1.4.0): a size can exist as
+           a text label and as a barcode label; they are different PDFs.
+           Old records have no kind and count as "text". */
+        val kind: String = "text"
     )
 
     private val prefs = context.getSharedPreferences("label_store", Context.MODE_PRIVATE)
@@ -52,21 +56,24 @@ class AppStore(context: Context) {
         return h
     }
 
-    fun fileNameForSize(size: String): String {
+    fun fileNameForSize(size: String, kind: String = "text"): String {
         /* Keep [A-Za-z0-9], replace runs of anything else with one
            underscore, strip edge underscores. A name that lost
            information (spacing, case is kept, punctuation) gets a hash
-           suffix so distinct raw sizes never share a file. */
+           suffix so distinct raw sizes never share a file. The text
+           names are unchanged from before; barcode PDFs get a
+           _barcode suffix so the two kinds never share a file. */
         val clean = size.replace("[^A-Za-z0-9]+".toRegex(), "_").trim('_')
         val converted = size.replace(' ', '_')
         val lossy = converted != clean
-        if (clean.length > 50) return "size_adv_${javaHash(size)}.pdf"
-        if (lossy) return "size_${clean}_${javaHash(size)}.pdf"
-        return "size_$clean.pdf"
+        val base = if (clean.length > 50) "size_adv_${javaHash(size)}.pdf"
+            else if (lossy) "size_${clean}_${javaHash(size)}.pdf"
+            else "size_$clean.pdf"
+        return if (kind == "barcode") base.removeSuffix(".pdf") + "_barcode.pdf" else base
     }
 
-    fun findRecordForSize(size: String): LabelRecord? {
-        return records().find { it.size == size }
+    fun findRecordForSize(size: String, kind: String = "text"): LabelRecord? {
+        return records().find { it.size == size && it.kind == kind }
     }
 
     private fun cleanupDuplicates() {
@@ -76,7 +83,7 @@ class AppStore(context: Context) {
            naming stay as they are, as their own entries). */
         val all = records()
         if (all.isEmpty()) return
-        val groups = all.groupBy { strictKey(it.size) }
+        val groups = all.groupBy { strictKey(it.size) to it.kind }
         var changed = false
         val consolidated = mutableListOf<LabelRecord>()
         
@@ -94,7 +101,7 @@ class AppStore(context: Context) {
                     }
                 }
                 
-                val idealFileName = fileNameForSize(main.size)
+                val idealFileName = fileNameForSize(main.size, main.kind)
                 if (main.fileName != idealFileName) {
                     val oldFile = File(pdfDir, main.fileName)
                     val newFile = File(pdfDir, idealFileName)
@@ -108,7 +115,7 @@ class AppStore(context: Context) {
                 ))
             } else {
                 val record = recordsForSize[0]
-                val idealFileName = fileNameForSize(record.size)
+                val idealFileName = fileNameForSize(record.size, record.kind)
                 if (record.fileName != idealFileName) {
                     changed = true
                     val oldFile = File(pdfDir, record.fileName)
@@ -134,7 +141,8 @@ class AppStore(context: Context) {
         val array = try { JSONArray(prefs.getString("records", "[]")) } catch (_: Exception) { JSONArray() }
         for (i in 0 until array.length()) {
             val o = array.optJSONObject(i) ?: continue
-            result += LabelRecord(o.optLong("id"), o.optString("size"), o.optString("file"), o.optLong("created"), o.optInt("prints"), o.optLong("lastPrinted"))
+            val kindRaw = o.optString("kind")
+            result += LabelRecord(o.optLong("id"), o.optString("size"), o.optString("file"), o.optLong("created"), o.optInt("prints"), o.optLong("lastPrinted"), if (kindRaw.isEmpty()) "text" else kindRaw)
         }
         return result
     }
@@ -195,7 +203,7 @@ class AppStore(context: Context) {
     private fun save(list: List<LabelRecord>) {
         val array = JSONArray()
         list.forEach { r -> array.put(JSONObject().apply {
-            put("id", r.id); put("size", r.size); put("file", r.fileName); put("created", r.createdAt); put("prints", r.printCount); put("lastPrinted", r.lastPrintedAt)
+            put("id", r.id); put("size", r.size); put("file", r.fileName); put("created", r.createdAt); put("prints", r.printCount); put("lastPrinted", r.lastPrintedAt); put("kind", r.kind)
         }) }
         prefs.edit().putString("records", array.toString()).apply()
     }

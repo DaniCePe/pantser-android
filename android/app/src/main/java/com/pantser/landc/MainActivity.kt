@@ -572,15 +572,15 @@ class MainActivity : AppCompatActivity() {
         page.addView(heading(getString(R.string.quick_print_title)))
         val isLastUsed = store.setting("quick_print_sort", "last") == "last"
         val records = store.records().filter { it.printCount > 0 }
-        val frequent = if (isLastUsed) { records.sortedByDescending { it.lastPrintedAt } } else { records.sortedByDescending { it.printCount } }.distinctBy { it.size }.take(8)
+        val frequent = if (isLastUsed) { records.sortedByDescending { it.lastPrintedAt } } else { records.sortedByDescending { it.printCount } }.distinctBy { it.size to it.kind }.take(8)
         if (frequent.isEmpty()) page.addView(TextView(this).apply { text = getString(R.string.no_recent_labels); textSize = 13f; setTextColor(muted()); if (isTerminal()) setTypeface(Typeface.MONOSPACE); setPadding(dp(4), dp(4), 0, dp(12)) })
         frequent.forEach { record ->
             val row = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(dp(14), dp(8), dp(14), dp(8)); background = if (isRetro()) outsetRetro(surf()) else round(surf(), 10) }
-            val displaySize = record.size.replace("|", " | ")
+            val displaySize = record.size.replace("|", " | ") + if (record.kind == "barcode") " · " + getString(R.string.label_barcode_tag) else ""
             val label = TextView(this).apply { text = displaySize; textSize = 15f; setTextColor(textColor()); setTypeface(if (isTerminal()) Typeface.MONOSPACE else null, Typeface.BOLD) }
             row.addView(label, LinearLayout.LayoutParams(0, -2, 1f))
             row.addView(TextView(this).apply { text = getString(R.string.print_count_text, record.printCount); textSize = 12f; setTextColor(muted()); if (isTerminal()) setTypeface(Typeface.MONOSPACE) })
-            row.setOnClickListener { createLabel(record.size) }
+            row.setOnClickListener { createLabel(record.size, record.kind) }
             val rp = LinearLayout.LayoutParams(-1, dp(48)); rp.setMargins(0, 0, 0, dp(6)); page.addView(row, rp)
         }
         scroll.addView(page)
@@ -721,12 +721,18 @@ class MainActivity : AppCompatActivity() {
     private fun mutedColor() = if (isRetro()) { if (isDark()) Color.parseColor("#404080") else Color.parseColor("#000080") } else (if (isDark()) Color.parseColor("#8A8F98") else Color.parseColor("#7A6B75"))
     private fun accSurf() = if (isDark()) Color.parseColor("#1C1A30") else Color.parseColor("#E4E6FA")
 
-    private fun createLabel(raw: String) {
+    private fun createLabel(raw: String, kindOverride: String? = null) {
         val size = raw.trim()
         if (size.isEmpty()) { toast(getString(R.string.err_empty_size)); return }
+        /* A size can exist as a text label and as a barcode label;
+           they are different PDFs, so the record identity includes
+           the kind. The kind comes from the Utilities barcode switch,
+           except tray reprints pass the record's own kind explicitly
+           (mirrors the web app). */
+        val kind = kindOverride ?: if (store.setting("barcode", "false") == "true") "barcode" else "text"
         try {
             synchronized(createLock) {
-                val existing = store.findRecordForSize(size)
+                val existing = store.findRecordForSize(size, kind)
                 if (existing != null) {
                     val file = store.fileFor(existing)
                     if (file.exists() && file.length() > 0) {
@@ -736,12 +742,12 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
                 val id = System.currentTimeMillis()
-                val fileName = store.fileNameForSize(size)
-                val record = AppStore.LabelRecord(id, size, fileName, id)
+                val fileName = store.fileNameForSize(size, kind)
+                val record = AppStore.LabelRecord(id, size, fileName, id, kind = kind)
                 val file = store.fileFor(record)
                 val layout = store.setting("layout", "4x15").split("x")
                 val cols = layout[0].toInt(); val rows = layout[1].toInt()
-                FileOutputStream(file).use { PdfGenerator.generate(size.split("|"), it, cols, rows) }
+                FileOutputStream(file).use { PdfGenerator.generate(size.split("|"), it, cols, rows, kind == "barcode") }
                 store.add(record)
                 store.recordCreation(size)
                 printPdf(record, file)
@@ -844,6 +850,9 @@ class MainActivity : AppCompatActivity() {
         switchItem(p1, getString(R.string.setting_two_box), getString(R.string.setting_two_box_sub), store.setting("two_box", "false") == "true") {
             store.setSetting("two_box", it.toString())
             setupMainPager()
+        }
+        switchItem(p1, getString(R.string.setting_barcode), getString(R.string.setting_barcode_sub), store.setting("barcode", "false") == "true") {
+            store.setSetting("barcode", it.toString())
         }
         settingItem(p1, getString(R.string.setting_layout), layoutStr) { chooseLayout() }
         settingItem(p1, getString(R.string.setting_export), getString(R.string.setting_export_sub)) { chooseExport() }

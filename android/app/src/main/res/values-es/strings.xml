@@ -109,4 +109,7 @@
 
     <string name="lang_en">Inglés</string>
     <string name="lang_es">Español</string>
+    <string name="setting_barcode">Etiquetas de código de barras</string>
+    <string name="setting_barcode_sub">Las hojas se vuelven códigos de barras Code 128 con la talla impresa debajo de cada una.</string>
+    <string name="label_barcode_tag">Código de barras</string>
 </resources>
