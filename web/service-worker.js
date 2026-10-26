@@ -3,8 +3,9 @@
    v1.7.0 adds the settings-gated Item labels page (bundled logo and
    Tinos fonts included so item sheets work offline too).
    v1.7.1 centers the item labels button on desktop and gives the
-   Settings and Info pagers arrow keys plus edge arrows. */
-const CACHE = 'pantser-v13';
+   Settings and Info pagers arrow keys plus edge arrows.
+   v1.7.2 renders all-digit barcodes as Code 128 set C. */
+const CACHE = 'pantser-v14';
 const ASSETS = [
   './',
   './index.html',

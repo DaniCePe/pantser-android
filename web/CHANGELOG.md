@@ -2,6 +2,11 @@
 
 Every publishing ships with its own dated, versioned entry.
 
+## [2026-10-26] [v1.7.2]
+- Changed: barcode sheets for all-digit sizes of even length now render as Code 128 set C (digit pairs) instead of set B — the same form as the photo barcode alex scanned, and the form bwip-js picks for such strings. It decodes to the same number; only the bar pattern is denser. Anything with letters, spaces, or an odd digit count stays set B exactly as before.
+- Changed: reprinting a digit sheet that was first printed before this update regenerates it as set C under the same record, instead of reprinting its old set-B bytes.
+- Service worker cache bumped to pantser-v14.
+
 ## [2026-10-26] [v1.7.1]
 - Fixed: on desktop, the Create item labels button stretched to the left edge instead of sitting centered like the home Create button. It now gets the same centered pill treatment in the wide layout. Phone portrait layout is unchanged.
 - Fixed: the Settings pages (and the Info pages, which share the same pager) could only be turned by a finger swipe, so mouse and keyboard users on desktop were stuck. They now also respond to the left and right arrow keys, and left/right arrows appear on the edges of those pages in the wide layout. Arrow keys never fire while typing in a field or working a control.

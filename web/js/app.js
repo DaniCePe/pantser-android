@@ -3,7 +3,7 @@
    Default theme only (Linear Modern + Ember Night); other styles and
    palettes are reserved slots. No em dashes in this file. */
 
-const APP_VERSION = '1.7.1';
+const APP_VERSION = '1.7.2';
 
 /* ---------------- i18n ---------------- */
 function langCode() {
@@ -111,16 +111,33 @@ function layoutColsRows() {
    modules (alternating bar, space, starting with a bar), or null when
    the text has characters set B cannot encode. */
 const C128_PATTERNS = ['212222','222122','222221','121223','121322','131222','122213','122312','132212','221213','221312','231212','112232','122132','122231','113222','123122','123221','223211','221132','221231','213212','223112','312131','311222','321122','321221','312212','322112','322211','212123','212321','232121','111323','131123','131321','112313','132113','132311','211313','231113','231311','112133','112331','132131','113123','113321','133121','313121','211331','231131','213113','213311','213131','311123','311321','331121','312113','312311','332111','314111','221411','431111','111224','111422','121124','121421','141122','141221','112214','112412','122114','122411','142112','142211','241211','221114','413111','241112','134111','111242','121142','121241','114212','124112','124211','411212','421112','421211','212141','214121','412121','111143','111341','131141','114113','114311','411113','411311','113141','114131','311141','411131','211412','211214','211232','2331112'];
+/* Code 128 set selection (v1.7.2): an all-digit string of even
+   length encodes as set C (digit pairs, the form in alex's photo
+   barcode and the form bwip-js picks for such strings); anything
+   else encodes as set B, exactly as before. Both decode to the same
+   text; only the bar pattern differs. */
+function usesSetC(text) {
+  return text.length >= 2 && text.length % 2 === 0 && /^\d+$/.test(text);
+}
 function code128Runs(text) {
-  const vals = [104];
-  for (let i = 0; i < text.length; i++) {
-    const code = text.charCodeAt(i);
-    if (code < 32 || code > 126) return null;
-    vals.push(code - 32);
+  const vals = [];
+  if (usesSetC(text)) {
+    vals.push(105);
+    for (let i = 0; i < text.length; i += 2) vals.push(parseInt(text.slice(i, i + 2), 10));
+    let sum = 105;
+    for (let i = 1; i < vals.length; i++) sum += i * vals[i];
+    vals.push(sum % 103, 106);
+  } else {
+    vals.push(104);
+    for (let i = 0; i < text.length; i++) {
+      const code = text.charCodeAt(i);
+      if (code < 32 || code > 126) return null;
+      vals.push(code - 32);
+    }
+    let sum = 104;
+    for (let i = 1; i < vals.length; i++) sum += i * vals[i];
+    vals.push(sum % 103, 106);
   }
-  let sum = 104;
-  for (let i = 1; i < vals.length; i++) sum += i * vals[i];
-  vals.push(sum % 103, 106);
   const runs = [];
   vals.forEach(function (v) {
     const pat = C128_PATTERNS[v];
@@ -214,6 +231,18 @@ async function createLabel(rawSize, kindOverride) {
     const records = Store.get('records', []);
     const existing = records.find(function (r) { return strictKey(r.size) === n && (r.kind || 'text') === kind; });
     if (existing) {
+      /* v1.7.2: a barcode record printed before set C existed still
+         holds set-B bytes. A digit sheet must come out as set C now,
+         so instead of reprinting those bytes, regenerate in place
+         under the same record (no duplicate, no merge surprise). */
+      if (kind === 'barcode' && size.indexOf('|') < 0 && usesSetC(size)) {
+        const fresh = await generatePdf([size], true);
+        await IDB.put(existing.id, fresh);
+        existing.bytesLen = fresh.length;
+        Store.set('records', records);
+        await printRecord(existing, fresh);
+        goHome(); return;
+      }
       const bytes = await IDB.get(existing.id);
       if (bytes && bytes.length > 0) { await printRecord(existing, bytes); goHome(); return; }
     }

@@ -254,6 +254,14 @@ settings). The web keeps the same grouping.
   consolidate per size AND kind, and quick-print tray rows reprint with
   the record's own kind. Text that Code 128 set B cannot encode falls
   back to the normal text cell.
+- Barcode set selection (web v1.7.2): an all-digit size of even
+  length (2 or more digits) encodes as Code 128 set C (digit pairs),
+  the form in alex's photo barcode; anything else stays set B. Both
+  decode to the same text. A barcode record printed before v1.7.2
+  still holds set-B bytes, so reprinting a digit sheet regenerates
+  it as set C in place under the same record instead of reusing the
+  old bytes. Multi-column sheets pick the set per cell at generation
+  time; reprints of multi-column sheets reuse their stored bytes.
 - Paper layout: dialog with 4 x 15, 3 x 10, 4 x 20, 2 x 10 (default 4 x 15).
 - Export a saved PDF: lists records as "<size> x <date>", copies the chosen
   PDF to user-picked external storage. On the web this becomes a file
