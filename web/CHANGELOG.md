@@ -2,6 +2,11 @@
 
 Every publishing ships with its own dated, versioned entry.
 
+## [2026-10-26] [v1.8.1]
+- Changed: the standard side margin for size-label sheets is now 0.15" instead of 0.30", so columns sit more spread out by default. The old 0.30" is still reachable through the Advanced page's Side margins stepper (0.00" to 0.30").
+- Changed: the Advanced settings page is no longer marked (experimental).
+- Service worker cache bumped to pantser-v16.
+
 ## [2026-10-26] [v1.8.0]
 - Added: Advanced settings page in the Settings pager, marked (experimental): a Custom margins switch plus a Side margins stepper. When on, 4 x 15 size-label sheets use your side margins instead of the standard 0.30", with left and right edges moving together for symmetry. The stepper moves in 0.05" steps from 0.00" (columns spread to the paper edges) to 0.30" (today's margins); some printers clip at the very edge, so 0.05" is the almost-touching end. Barcodes share the same geometry, so they spread too. Other layouts and the item-label sheets keep the standard margins. Saved margins survive toggling the switch off.
 - Service worker cache bumped to pantser-v15.

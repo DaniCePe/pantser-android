@@ -3,7 +3,7 @@
    Default theme only (Linear Modern + Ember Night); other styles and
    palettes are reserved slots. No em dashes in this file. */
 
-const APP_VERSION = '1.8.0';
+const APP_VERSION = '1.8.1';
 
 /* ---------------- i18n ---------------- */
 function langCode() {
@@ -149,17 +149,18 @@ function code128Runs(text) {
 /* ---------------- custom side margins (v1.8.0) ---------------- */
 /* One linked dial for both edges (symmetry, alex's call): stored as
    hundredths of an inch, 0 (columns touch the paper edges) to 30
-   (today's 0.30" margins). The master switch gates the effect; the
+   (the old 0.30" margins). The master switch gates the effect; the
    stored value survives toggling off, so re-enabling restores it.
    Scope, per alex: 4 x 15 size-label sheets only, barcodes included
    (they share this geometry). Other layouts and the item-label
-   sheets keep the standard margins. */
+   sheets keep the standard margins. v1.8.1: the standard margin is
+   0.15" (alex's tested pick), so the stored default is 15 too. */
 function customMarginsOn() {
   return Store.get('custom_margins', 'false') === 'true';
 }
 function sideMarginVal() {
-  let v = parseInt(Store.get('side_margin', '30'), 10);
-  if (isNaN(v)) v = 30;
+  let v = parseInt(Store.get('side_margin', '15'), 10);
+  if (isNaN(v)) v = 15;
   return Math.min(30, Math.max(0, v));
 }
 function sideMarginPt() { return sideMarginVal() * 0.72; }
@@ -176,7 +177,7 @@ async function generatePdf(sizeTexts, barcode) {
   const font = await doc.embedFont(StandardFonts.HelveticaBold);
   const fontReg = barcode ? await doc.embedFont(StandardFonts.Helvetica) : null;
   const FS = 24;
-  const side = customMarginsActive() ? sideMarginPt() : 21.6;
+  const side = customMarginsActive() ? sideMarginPt() : 10.8;
   const L = side, T = 39.6, R = side, B = 33.84;
   const uw = 612 - L - R, uh = 792 - T - B;
   const cw = uw / cols, ch = uh / rows;
@@ -1544,9 +1545,10 @@ function renderSettings() {
   }));
   a.appendChild(scaleRow());
 
-  /* advanced (v1.8.0): a fourth settings page. The master switch
-     gates the custom margins; the stepper below moves both edges
-     together (symmetry) in 0.05" steps, like the UI-scale stepper. */
+  /* advanced (v1.8.0; no longer experimental as of v1.8.1): a fourth
+     settings page. The master switch gates the custom margins; the
+     stepper below moves both edges together (symmetry) in 0.05"
+     steps, like the UI-scale stepper. */
   document.getElementById('set-adv-title').textContent = t('section_advanced');
   const av = document.getElementById('set-adv-list');
   av.innerHTML = '';

@@ -35,9 +35,9 @@ Object.assign(STRINGS.en, {
   upd_unsupported: "Updates aren't available in this browser.",
   setting_ui_scale: "UI scale",
   setting_ui_scale_sub: "Makes everything bigger or smaller",
-  section_advanced: "Advanced (experimental)",
+  section_advanced: "Advanced",
   setting_custom_margins: "Custom margins",
-  setting_custom_margins_sub: "When on, size-label sheets use your side margins instead of the standard 0.30\". Applies to 4 x 15 sheets, including barcodes.",
+  setting_custom_margins_sub: "When on, size-label sheets use your side margins instead of the standard 0.15\". Applies to 4 x 15 sheets, including barcodes.",
   setting_side_margin: "Side margins",
   setting_side_margin_sub: "Left and right edges move together. 0.00\" spreads the columns to the paper edges; some printers clip at the very edge."
 });
@@ -76,9 +76,9 @@ Object.assign(STRINGS.es, {
   upd_unsupported: "Las actualizaciones no están disponibles en este navegador.",
   setting_ui_scale: "Escala de la interfaz",
   setting_ui_scale_sub: "Hace todo más grande o más pequeño",
-  section_advanced: "Avanzado (experimental)",
+  section_advanced: "Avanzado",
   setting_custom_margins: "Márgenes personalizados",
-  setting_custom_margins_sub: "Cuando está activado, las hojas de etiquetas usan tus márgenes laterales en lugar de los 0.30\" estándar. Se aplica a hojas 4 x 15, incluyendo códigos de barras.",
+  setting_custom_margins_sub: "Cuando está activado, las hojas de etiquetas usan tus márgenes laterales en lugar de los 0.15\" estándar. Se aplica a hojas 4 x 15, incluyendo códigos de barras.",
   setting_side_margin: "Márgenes laterales",
   setting_side_margin_sub: "Los bordes izquierdo y derecho se mueven juntos. 0.00\" extiende las columnas hasta los bordes del papel; algunas impresoras recortan en el borde mismo."
 });

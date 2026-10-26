@@ -170,12 +170,13 @@ file name.
 The web PDF must match this drawing model exactly.
 
 - Page: US Letter, 612 x 792 points (8.5 x 11 in at 72 DPI). One page.
-- Margins: left 0.3 in (21.6 pt), right 0.3 in (21.6 pt), top 0.55 in
-  (39.6 pt), bottom 0.47 in (33.84 pt). Custom side margins (web
-  v1.8.0, Advanced settings page): when the Custom margins switch is
-  on and the layout is 4x15, left and right both equal the stored
-  side margin (0 to 0.30 in, 0.05 in steps); barcodes use the same
-  column geometry, so they spread too. Other layouts and the
+- Margins: left 0.15 in (10.8 pt), right 0.15 in (10.8 pt), top 0.55 in
+  (39.6 pt), bottom 0.47 in (33.84 pt). (Before web v1.8.1 the side
+  margins were 0.3 in.) Custom side margins (web v1.8.0, Advanced
+  settings page): when the Custom margins switch is on and the
+  layout is 4x15, left and right both equal the stored side margin
+  (0 to 0.30 in, 0.05 in steps, default 0.15 in); barcodes use the
+  same column geometry, so they spread too. Other layouts and the
   item-label sheets always use the standard margins above. Stored
   margin values survive toggling the switch off.
 - Grid: cols x rows from the layout setting. Default `4x15` (4 columns,
@@ -301,12 +302,12 @@ settings). The web keeps the same grouping.
   the whole stylesheet is in rem so the layout reflows. CSS zoom is not
   used. The PDF geometry is not affected.
 
-### 6.4 Advanced page (experimental, web v1.8.0)
+### 6.4 Advanced page (web v1.8.0; experimental tag removed in v1.8.1)
 - Custom margins switch (default off; store key `custom_margins`):
   when on, 4x15 size-label sheets use the stored side margin instead
-  of the standard 0.30" (see §3). Barcodes included.
+  of the standard 0.15" (see §3). Barcodes included.
 - Side margins stepper (store key `side_margin`, hundredths of an
-  inch, default 30): minus / inches / plus, 0.05" steps, 0.00" to
+  inch, default 15): minus / inches / plus, 0.05" steps, 0.00" to
   0.30". One linked value moves both edges together for symmetry.
   Disabled (greyed) while the master switch is off. Tray reprints
   reuse their stored bytes, so only newly created sheets pick up a

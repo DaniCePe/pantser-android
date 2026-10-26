@@ -5,8 +5,10 @@
    v1.7.1 centers the item labels button on desktop and gives the
    Settings and Info pagers arrow keys plus edge arrows.
    v1.7.2 renders all-digit barcodes as Code 128 set C.
-   v1.8.0 adds an Advanced settings page with custom side margins. */
-const CACHE = 'pantser-v15';
+   v1.8.0 adds an Advanced settings page with custom side margins.
+   v1.8.1 makes 0.15" the standard side margin and drops the
+   (experimental) tag. */
+const CACHE = 'pantser-v16';
 const ASSETS = [
   './',
   './index.html',
