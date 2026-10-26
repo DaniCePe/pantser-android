@@ -3,7 +3,7 @@
    Default theme only (Linear Modern + Ember Night); other styles and
    palettes are reserved slots. No em dashes in this file. */
 
-const APP_VERSION = '1.7.0';
+const APP_VERSION = '1.7.1';
 
 /* ---------------- i18n ---------------- */
 function langCode() {
@@ -538,8 +538,17 @@ function onBackPressed() {
      onPopState re-arms the trap after every back press. */
 }
 
-/* small swipe pager with dots */
-function makePager(pagerEl, dotsEl) {
+/* small swipe pager with dots. v1.7.1: the Settings and Info pagers
+   also answer to arrow keys and to on-screen edge arrows, so they
+   work for mouse and keyboard users on desktop, not just touch
+   swipes. Keys only act while their overlay is the current view, and
+   never while typing in a field or editable element, so they cannot
+   hijack text editing. Buttons are deliberately NOT excluded: after
+   opening Settings with the gear button, focus sits on that button,
+   and excluding buttons would make the keys dead on arrival for the
+   exact mouse-first flow this is for. */
+function makePager(pagerEl, dotsEl, opts) {
+  opts = opts || {};
   const pages = pagerEl.children.length;
   let idx = 0, sx = 0;
   function draw() {
@@ -552,7 +561,10 @@ function makePager(pagerEl, dotsEl) {
         dotsEl.appendChild(d);
       }
     }
+    if (opts.prev) opts.prev.disabled = idx === 0;
+    if (opts.next) opts.next.disabled = idx === pages - 1;
   }
+  function go(i) { idx = Math.max(0, Math.min(pages - 1, i)); draw(); }
   pagerEl.addEventListener('touchstart', function (e) { sx = e.touches[0].clientX; }, { passive: true });
   pagerEl.addEventListener('touchend', function (e) {
     const dx = e.changedTouches[0].clientX - sx;
@@ -560,8 +572,20 @@ function makePager(pagerEl, dotsEl) {
     else if (dx > 60 && idx > 0) idx--;
     draw();
   }, { passive: true });
+  if (opts.prev) opts.prev.addEventListener('click', function () { go(idx - 1); });
+  if (opts.next) opts.next.addEventListener('click', function () { go(idx + 1); });
+  if (opts.active) {
+    document.addEventListener('keydown', function (e) {
+      if (!opts.active()) return;
+      const tg = e.target;
+      if (tg && (tg.tagName === 'INPUT' || tg.tagName === 'TEXTAREA' ||
+          tg.tagName === 'SELECT' || tg.isContentEditable)) return;
+      if (e.key === 'ArrowLeft') go(idx - 1);
+      else if (e.key === 'ArrowRight') go(idx + 1);
+    });
+  }
   draw();
-  return { go: function (i) { idx = Math.max(0, Math.min(pages - 1, i)); draw(); } };
+  return { go: go, current: function () { return idx; } };
 }
 
 /* ---------------- static strings ---------------- */
@@ -570,6 +594,14 @@ function applyStrings() {
   document.getElementById('tab-create').textContent = t('generate_pdf');
   document.getElementById('tab-items').textContent = t('items_title');
   document.getElementById('tab-insights').textContent = t('insights_title');
+  const arrowLabel = function (id, key) {
+    const el = document.getElementById(id);
+    if (el) el.setAttribute('aria-label', t(key));
+  };
+  arrowLabel('settings-arrow-prev', 'pager_prev');
+  arrowLabel('settings-arrow-next', 'pager_next');
+  arrowLabel('info-arrow-prev', 'pager_prev');
+  arrowLabel('info-arrow-next', 'pager_next');
   document.title = t('app_name');
   document.documentElement.lang = langCode();
 }
@@ -1565,8 +1597,14 @@ async function init() {
      Insights moved the pager visually while back handling trusted the
      other controller's state, and back exited the app). makePager below
      remains only for the Settings and Info dot pagers. */
-  makePager(document.getElementById('settings-pager'), document.getElementById('settings-dots'));
-  makePager(document.getElementById('info-pager'), document.getElementById('info-dots'));
+  makePager(document.getElementById('settings-pager'), document.getElementById('settings-dots'),
+    { active: function () { return currentView === 'settings'; },
+      prev: document.getElementById('settings-arrow-prev'),
+      next: document.getElementById('settings-arrow-next') });
+  makePager(document.getElementById('info-pager'), document.getElementById('info-dots'),
+    { active: function () { return currentView === 'info'; },
+      prev: document.getElementById('info-arrow-prev'),
+      next: document.getElementById('info-arrow-next') });
 
   document.getElementById('tab-create').addEventListener('click', function () {
     if (currentView === 'home') goHome(); else showView('home');

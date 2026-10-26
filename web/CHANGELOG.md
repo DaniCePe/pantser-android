@@ -2,6 +2,11 @@
 
 Every publishing ships with its own dated, versioned entry.
 
+## [2026-10-26] [v1.7.1]
+- Fixed: on desktop, the Create item labels button stretched to the left edge instead of sitting centered like the home Create button. It now gets the same centered pill treatment in the wide layout. Phone portrait layout is unchanged.
+- Fixed: the Settings pages (and the Info pages, which share the same pager) could only be turned by a finger swipe, so mouse and keyboard users on desktop were stuck. They now also respond to the left and right arrow keys, and left/right arrows appear on the edges of those pages in the wide layout. Arrow keys never fire while typing in a field or working a control.
+- Service worker cache bumped to pantser-v13.
+
 ## [2026-10-25] [v1.7.0]
 - New Utilities setting: "Item labels" (switch, default off). When on, an Item labels page appears in the bottom bar between Create label and Insights, swipeable in dock order, with three boxes: ITEM #, DESCRIPTION and QTY.
 - Item labels generate a US Letter sheet of 4 identical box labels, 3.5 by 5 inches each with a 0.5 inch gutter. Each label is drawn readable-first (logo on top, then ITEM / DESCRIPTION / QTY) and rotated 90 degrees counter-clockwise into its cell, so a long description wraps inside its own label with a hanging indent and never spills into another cell. The Samara Vendrell Products letterhead is bundled, and text uses the bundled open-licence Tinos font (labels bold 20pt, ITEM/QTY values 20pt, DESCRIPTION value 18pt).

@@ -611,3 +611,21 @@ merged over the frozen APK tables.
   js/fontkit.umd.min.js. Quirk of the bundled pdf-lib build:
   registerFontkit is an instance method, so it runs on the
   document after create(), not as a static before it.)
+
+## 13. Dot-pager arrows and keyboard (v1.7.1)
+
+- The Settings and Info pagers share one helper (makePager). Besides
+  touch swipes, they answer to the left/right arrow keys and to
+  on-screen edge arrows (‹ ›) that sit at the left and right edges of
+  the overlay. Edge arrows are hidden on phones (CSS display none)
+  and shown in the wide layout only; they disable themselves at the
+  first and last page.
+- Arrow keys only act while their overlay is the current view, and
+  never when the event target is a field or editable element, so
+  typing is never hijacked. Buttons are not excluded on purpose:
+  after opening Settings with the gear button, focus sits on that
+  button, and excluding buttons would leave the keys dead for the
+  mouse-first flow this is for.
+- The item labels button gets the same wide-layout pill treatment as
+  the home Create button (centered, auto width, min-width 16rem);
+  phone portrait layout is unchanged.

@@ -1,8 +1,10 @@
 /* Pantser PWA service worker. Offline-first: caches the app shell on
    install so the app opens and generates PDFs with no connection.
    v1.7.0 adds the settings-gated Item labels page (bundled logo and
-   Tinos fonts included so item sheets work offline too). */
-const CACHE = 'pantser-v12';
+   Tinos fonts included so item sheets work offline too).
+   v1.7.1 centers the item labels button on desktop and gives the
+   Settings and Info pagers arrow keys plus edge arrows. */
+const CACHE = 'pantser-v13';
 const ASSETS = [
   './',
   './index.html',

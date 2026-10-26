@@ -207,6 +207,21 @@ p { line-height: 1.55; }
 }
 .stepper .sv { font-weight: 700; color: var(--acc); min-width: 3rem; text-align: center; }
 
+/* v1.7.1: dot-pager edge arrows. Hidden on phones (swipe works
+   there); shown in the wide layout, where mouse and keyboard users
+   need another way to turn the Settings and Info pages. The base
+   rule sits before the wide block on purpose: same specificity, so
+   the later wide rule is the one that wins on desktop. */
+.pager-arrow {
+  display: none; position: absolute; top: 50%; transform: translateY(-50%);
+  z-index: 6; width: 2.75rem; height: 2.75rem; border-radius: 50%;
+  border: none; background: var(--surf); color: var(--muted);
+  font-size: 1.5rem; line-height: 1; cursor: pointer;
+}
+.pager-arrow.left { left: 0.5rem; }
+.pager-arrow.right { right: 0.5rem; }
+.pager-arrow:disabled { opacity: 0.3; cursor: default; }
+
 /* v1.6.0: wide layout — desktop windows and landscape phones.
    Every rule above stays exactly as-is; the rules below only apply
    when the viewport is wide, where the 30rem phone column used to sit
@@ -228,7 +243,7 @@ p { line-height: 1.55; }
     box-shadow: 0 0.125rem 0.625rem rgba(0, 0, 0, .18);
   }
   #btn-jump { display: block; margin-left: auto; margin-right: auto; text-align: center; }
-  #btn-create {
+  #btn-create, #btn-items-create {
     display: block; width: auto; min-width: 16rem;
     margin: 0.75rem auto 1rem; border-radius: 999px;
     padding-left: 2.5rem; padding-right: 2.5rem;
@@ -238,6 +253,7 @@ p { line-height: 1.55; }
     position: absolute; top: 1rem; left: 1rem; width: 17rem;
     max-width: none; margin: 0; z-index: 2;
   }
+  .pager-arrow { display: block; }
   #home-chips .set-row { box-shadow: 0 0.125rem 0.5rem rgba(0, 0, 0, .12); }
 }
 
