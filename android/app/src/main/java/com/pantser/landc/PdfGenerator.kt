@@ -13,11 +13,13 @@ import kotlin.math.min
  * Mirrors the original Pydroid/fpdf script: 4 columns x 15 rows,
  * 0.3" side margins, 0.55" top margin, bold 24pt centered text.
  *
- * Barcode mode (port of the web app's v1.4.0/v1.4.1): each cell
- * becomes a Code 128 set B barcode with the size printed underneath
- * in plain text, sized to the cell with the web's taller, narrower
- * grocery-store proportions. Text set B cannot encode falls back to
- * the normal text cell, exactly like web.
+ * Barcode mode (port of the web app's v1.4.0/v1.4.1, set C auto-switch
+ * v1.5.0 mirroring web v1.7.2): each cell becomes a Code 128 barcode
+ * with the size printed underneath in plain text, sized to the cell
+ * with the web's taller, narrower grocery-store proportions. Even-
+ * length digit strings encode as set C (digit pairs); anything else
+ * as set B. Text set B cannot encode falls back to the normal text
+ * cell, exactly like web.
  */
 object PdfGenerator {
 

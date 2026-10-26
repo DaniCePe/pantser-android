@@ -1,12 +1,19 @@
 package com.pantser.landc
 
 /**
- * Code 128 set B encoder, ported from the web app's code128Runs()
- * (web/js/app.js). Returns the bar/space run widths in modules, or
- * null for text set B cannot encode (outside ASCII 32-126); callers
- * fall back to the normal text cell in that case, exactly like web.
+ * Code 128 encoder, ported from the web app's code128Runs()
+ * (web/js/app.js). Auto set (v1.5.0, mirrors web v1.7.2): an
+ * all-digit string of even length encodes as set C (digit pairs,
+ * the form in alex's photo barcode); anything else encodes as set B.
+ * Returns the bar/space run widths in modules, or null for text set B
+ * cannot encode (outside ASCII 32-126); callers fall back to the
+ * normal text cell in that case, exactly like web.
  */
 object Code128 {
+
+    fun usesSetC(text: String): Boolean {
+        return text.length >= 2 && text.length % 2 == 0 && text.all { it in '0'..'9' }
+    }
 
     private val PATTERNS = arrayOf(
         "212222", "222122", "222221", "121223", "121322", "131222", "122213",
@@ -28,16 +35,30 @@ object Code128 {
     )
 
     fun runs(text: String): List<Int>? {
-        val vals = mutableListOf(104)
-        for (ch in text) {
-            val code = ch.code
-            if (code < 32 || code > 126) return null
-            vals.add(code - 32)
+        val vals = mutableListOf<Int>()
+        if (usesSetC(text)) {
+            vals.add(105)
+            var i = 0
+            while (i < text.length) {
+                vals.add(text.substring(i, i + 2).toInt())
+                i += 2
+            }
+            var sum = 105
+            for (j in 1 until vals.size) sum += j * vals[j]
+            vals.add(sum % 103)
+            vals.add(106)
+        } else {
+            vals.add(104)
+            for (ch in text) {
+                val code = ch.code
+                if (code < 32 || code > 126) return null
+                vals.add(code - 32)
+            }
+            var sum = 104
+            for (i in 1 until vals.size) sum += i * vals[i]
+            vals.add(sum % 103)
+            vals.add(106)
         }
-        var sum = 104
-        for (i in 1 until vals.size) sum += i * vals[i]
-        vals.add(sum % 103)
-        vals.add(106)
         val runs = mutableListOf<Int>()
         for (v in vals) {
             for (digit in PATTERNS[v]) runs.add(digit - '0')

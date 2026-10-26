@@ -734,6 +734,18 @@ class MainActivity : AppCompatActivity() {
             synchronized(createLock) {
                 val existing = store.findRecordForSize(size, kind)
                 if (existing != null) {
+                    /* v1.5.0: a barcode record printed before set C existed
+                       still holds set-B bytes. A digit sheet must come out
+                       as set C now, so regenerate in place under the same
+                       record instead of reprinting the old bytes. */
+                    if (kind == "barcode" && !size.contains("|") && Code128.usesSetC(size)) {
+                        val file = store.fileFor(existing)
+                        val layout = store.setting("layout", "4x15").split("x")
+                        FileOutputStream(file).use { PdfGenerator.generate(listOf(size), it, layout[0].toInt(), layout[1].toInt(), true) }
+                        printPdf(existing, file)
+                        showHome()
+                        return
+                    }
                     val file = store.fileFor(existing)
                     if (file.exists() && file.length() > 0) {
                         printPdf(existing, file)
