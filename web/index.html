@@ -36,6 +36,20 @@
           <div id="tray-list"></div>
         </div>
       </section>
+      <section id="view-items" class="view page">
+        <h2 id="items-title"></h2>
+        <p class="sub" id="items-sub"></p>
+        <div id="items-form">
+          <input type="text" id="items-input-item" autocomplete="off">
+          <input type="text" id="items-input-desc" autocomplete="off">
+          <input type="text" id="items-input-qty" autocomplete="off" inputmode="numeric">
+        </div>
+        <button id="btn-items-create" class="primary"></button>
+        <div class="tray">
+          <div class="tray-title" id="items-hist-title"></div>
+          <div id="items-hist-list"></div>
+        </div>
+      </section>
       <section id="view-insights" class="view page">
         <h2 id="ins-title"></h2>
         <p class="sub" id="ins-sub"></p>
@@ -72,6 +86,7 @@
 
   <nav id="dock">
     <button id="tab-create" class="tab"></button>
+    <button id="tab-items" class="tab"></button>
     <button id="tab-insights" class="tab"></button>
   </nav>
 </div>
@@ -88,6 +103,7 @@
 </div>
 
 <script src="js/pdf-lib.min.js"></script>
+<script src="js/fontkit.umd.min.js"></script>
 <script src="js/strings.js"></script>
 <script src="js/strings-web.js"></script>
 <script src="js/app.js"></script>

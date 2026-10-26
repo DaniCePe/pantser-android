@@ -3,7 +3,7 @@
    Default theme only (Linear Modern + Ember Night); other styles and
    palettes are reserved slots. No em dashes in this file. */
 
-const APP_VERSION = '1.6.0';
+const APP_VERSION = '1.7.0';
 
 /* ---------------- i18n ---------------- */
 function langCode() {
@@ -242,8 +242,13 @@ async function printRecord(rec, bytes) {
   Store.set('records', Store.get('records', []));
   Store.set('total_printed', Store.get('total_printed', 0) + 1);
   renderAll();
-  /* Web mapping of the Android print dialog: open the PDF in a hidden
-     frame and invoke the browser print dialog. */
+  await printPdfBytes(bytes);
+}
+
+/* Shared by size labels and item labels: open the PDF in a hidden
+   frame and invoke the browser print dialog. This is the web mapping
+   of the Android print dialog. */
+async function printPdfBytes(bytes) {
   const blob = new Blob([bytes], { type: 'application/pdf' });
   const url = URL.createObjectURL(blob);
   try {
@@ -413,19 +418,50 @@ function applyTheme() {
 let currentView = 'home';
 function goHome() { showView('home'); }
 
+/* Item labels (v1.7.0) is a settings-gated middle page, like the
+   barcode switch gates a rendering mode: when the switch is off the
+   pager is exactly the old two pages, home and insights, and nothing
+   else in the app changes. */
+function itemLabelsOn() {
+  return Store.get('item_labels', 'false') === 'true';
+}
+function mainPages() {
+  return itemLabelsOn() ? ['home', 'items', 'insights'] : ['home', 'insights'];
+}
+function pagerIndex(v) {
+  const i = mainPages().indexOf(v);
+  return i < 0 ? 0 : i;
+}
+/* One place owns the pager position and the dock tabs, so a toggle
+   flip cannot leave Insights sitting at the old -100% offset when the
+   middle page appears or disappears underneath it. */
+function applyPager() {
+  const pager = document.getElementById('pager');
+  const idx = pagerIndex(currentView);
+  pager.style.transform = idx === 0 ? 'translateX(0)' : 'translateX(-' + (idx * 100) + '%)';
+  document.getElementById('tab-create').classList.toggle('on', currentView === 'home');
+  document.getElementById('tab-items').classList.toggle('on', currentView === 'items');
+  document.getElementById('tab-insights').classList.toggle('on', currentView === 'insights');
+  document.getElementById('tab-items').style.display = itemLabelsOn() ? '' : 'none';
+}
+/* Called from renderAll: a toggle flip while standing on a page that
+   just vanished (or while Insights moved a slot over) re-seats the
+   pager instead of stranding the view. */
+function renderDock() {
+  if (currentView === 'items' && !itemLabelsOn()) { showView('home'); return; }
+  if (mainPages().indexOf(currentView) >= 0) applyPager();
+  else document.getElementById('tab-items').style.display = itemLabelsOn() ? '' : 'none';
+}
+
 function showView(v, push) {
   currentView = v;
-  const pager = document.getElementById('pager');
   const vs = document.getElementById('view-settings');
   const vi = document.getElementById('view-info');
   vs.classList.add('hidden'); vi.classList.add('hidden');
   document.getElementById('dock').style.display = '';
-  if (v === 'insights') pager.style.transform = 'translateX(-100%)';
-  else pager.style.transform = 'translateX(0)';
+  applyPager();
   if (v === 'settings') { vs.classList.remove('hidden'); document.getElementById('dock').style.display = 'none'; }
   if (v === 'info') { vi.classList.remove('hidden'); document.getElementById('dock').style.display = 'none'; }
-  document.getElementById('tab-create').classList.toggle('on', v === 'home');
-  document.getElementById('tab-insights').classList.toggle('on', v === 'insights');
   /* No history pushes here (v1.3.2): view changes are internal state.
      The old per-navigation pushes made the history stack grow and drain
      unevenly (some paths re-pushed, some did not), so a back press could
@@ -478,11 +514,14 @@ function onPopState() {
   if (!exitingApp) armTrap();
 }
 function onBackPressed() {
-  /* Belt and braces (v1.3.1): if Insights is what is actually on screen,
-     back goes home even if currentView somehow disagrees. */
+  /* Belt and braces (v1.3.1, extended v1.7.0): if a pager page other
+     than home is what is actually on screen, back goes home even if
+     currentView somehow disagrees. */
   const pagerEl = document.getElementById('pager');
-  const insightsOnScreen = pagerEl && pagerEl.style.transform.indexOf('-100%') >= 0;
-  if (currentView === 'settings' || currentView === 'info' || currentView === 'insights' || (currentView === 'home' && insightsOnScreen)) { showView('home'); return; }
+  const pagerOffHome = pagerEl && pagerEl.style.transform &&
+    pagerEl.style.transform.indexOf('translateX(0)') < 0;
+  if (currentView === 'settings' || currentView === 'info' || currentView === 'items' ||
+      currentView === 'insights' || (currentView === 'home' && pagerOffHome)) { showView('home'); return; }
   const b = Store.get('back_behavior', 'ask');
   if (b === 'ask') {
     showDialog({
@@ -529,6 +568,7 @@ function makePager(pagerEl, dotsEl) {
 function applyStrings() {
   document.getElementById('topbar-title').textContent = t('app_name');
   document.getElementById('tab-create').textContent = t('generate_pdf');
+  document.getElementById('tab-items').textContent = t('items_title');
   document.getElementById('tab-insights').textContent = t('insights_title');
   document.title = t('app_name');
   document.documentElement.lang = langCode();
@@ -822,6 +862,246 @@ function renderTray() {
   });
 }
 
+/* ---------------- item labels (v1.7.0) ---------------- */
+/* 2x2 box-label sheets, ported from the standalone test generator
+   (~/workspace/item-labels-test/make_labels.py). Same geometry, same
+   rule: each label is drawn readable-first (5 x 3.5in landscape, logo
+   on top, then ITEM / DESCRIPTION / QTY) and rotated 90 deg CCW into
+   its 3.5 x 5in cell at an absolute position, so a long description
+   wraps inside its own label and can never spill into another cell.
+   Logo: bundled Samara Vendrell Products letterhead (alex's call).
+   Font: bundled open-licence Tinos, metric-compatible with the
+   original's Times New Roman. */
+const ITEM_CELL_W = 252, ITEM_CELL_H = 360, ITEM_GUTTER = 36;
+const ITEM_MARGIN_X = 36, ITEM_MARGIN_TOP = 36;
+const ITEM_LABEL_W = 360, ITEM_LABEL_H = 252, ITEM_PAD = 18;
+const ITEM_LOGO_W = 324, ITEM_LOGO_H = ITEM_LOGO_W * 245 / 766;
+
+let itemAssets = null;
+async function loadItemAssets() {
+  if (itemAssets) return itemAssets;
+  const [logoRes, regRes, boldRes] = await Promise.all([
+    fetch('assets/logo_readable.jpg'),
+    fetch('assets/fonts/Tinos-Regular.ttf'),
+    fetch('assets/fonts/Tinos-Bold.ttf')
+  ]);
+  if (!logoRes.ok || !regRes.ok || !boldRes.ok) throw new Error('item-assets-missing');
+  itemAssets = {
+    logo: new Uint8Array(await logoRes.arrayBuffer()),
+    reg: new Uint8Array(await regRes.arrayBuffer()),
+    bold: new Uint8Array(await boldRes.arrayBuffer())
+  };
+  return itemAssets;
+}
+
+/* Greedy word wrap for one value, measured in its own font and size.
+   Every line gets the same usable width: the first line loses the
+   label width to the bold label, and continuation lines start at the
+   hanging indent, which is exactly that same width. */
+function wrapValueWords(words, font, size, maxW) {
+  const lines = [];
+  let cur = '';
+  words.forEach(function (w) {
+    const trial = cur ? cur + ' ' + w : w;
+    if (cur && font.widthOfTextAtSize(trial, size) > maxW) { lines.push(cur); cur = w; }
+    else cur = trial;
+  });
+  if (cur !== '' || !lines.length) lines.push(cur);
+  return lines;
+}
+
+async function generateItemPdf(item, description, qty) {
+  const assets = await loadItemAssets();
+  const { PDFDocument, rgb, pushGraphicsState, popGraphicsState, concatTransformationMatrix } = PDFLib;
+  const doc = await PDFDocument.create();
+  /* Custom TTF fonts need a fontkit instance registered first; the
+     bundled pdf-lib build does not ship one (caught by the browser
+     test, not by jsdom, which never reaches this line). Note this
+     build's quirk: registerFontkit is an instance method here, not
+     the static the newer docs show, so it runs after create(). */
+  if (typeof fontkit !== 'undefined') {
+    if (typeof doc.registerFontkit === 'function') doc.registerFontkit(fontkit);
+    else if (typeof PDFDocument.registerFontkit === 'function') PDFDocument.registerFontkit(fontkit);
+  }
+  const page = doc.addPage([612, 792]);
+  const fontReg = await doc.embedFont(assets.reg);
+  const fontBold = await doc.embedFont(assets.bold);
+  const logo = await doc.embedJpg(assets.logo);
+  const black = rgb(0, 0, 0);
+
+  function drawLabel() {
+    page.drawImage(logo, { x: ITEM_PAD, y: ITEM_LABEL_H - ITEM_PAD - ITEM_LOGO_H, width: ITEM_LOGO_W, height: ITEM_LOGO_H });
+    let yTop = ITEM_LABEL_H - ITEM_PAD - ITEM_LOGO_H - 12;
+    const rows = [
+      { label: 'ITEM #:', value: item, size: 20 },
+      { label: 'DESCRIPTION:', value: description, size: 18 },
+      { label: 'QTY:', value: qty, size: 20 }
+    ];
+    rows.forEach(function (row) {
+      const indent = fontBold.widthOfTextAtSize(row.label + ' ', 20);
+      const avail = ITEM_LABEL_W - 2 * ITEM_PAD - indent;
+      const lines = wrapValueWords(String(row.value).split(/\s+/).filter(function (w) { return w !== ''; }),
+        fontReg, row.size, avail);
+      lines.forEach(function (line, li) {
+        const baseline = yTop - li * 27 - 20;
+        if (li === 0) {
+          page.drawText(row.label, { x: ITEM_PAD, y: baseline, size: 20, font: fontBold, color: black });
+        }
+        page.drawText(line, { x: ITEM_PAD + indent, y: baseline, size: row.size, font: fontReg, color: black });
+      });
+      yTop -= lines.length * 27 + 8;
+    });
+  }
+
+  /* Cell bottom-left corners (PDF origin is bottom-left). The
+     transform is the test generator's: translate to the cell's
+     top-right corner, then rotate 90 deg CCW. */
+  const topY = 792 - ITEM_MARGIN_TOP - ITEM_CELL_H;
+  const cells = [
+    [ITEM_MARGIN_X, topY],
+    [ITEM_MARGIN_X + ITEM_CELL_W + ITEM_GUTTER, topY],
+    [ITEM_MARGIN_X, topY - ITEM_CELL_H],
+    [ITEM_MARGIN_X + ITEM_CELL_W + ITEM_GUTTER, topY - ITEM_CELL_H]
+  ];
+  cells.forEach(function (cell) {
+    page.pushOperators(pushGraphicsState(),
+      concatTransformationMatrix(0, 1, -1, 0, cell[0] + ITEM_CELL_W, cell[1]));
+    drawLabel();
+    page.pushOperators(popGraphicsState());
+  });
+  return await doc.save();
+}
+
+/* Item history lives apart from the size-label tray: its own store
+   key, its own list on the item page, and it is deliberately not
+   counted in Insights totals and not touched by the 7-day cleanup. */
+function itemRecords() {
+  return Store.get('item_records', []);
+}
+function itemKey(item, desc, qty) {
+  return item + '|' + desc + '|' + qty;
+}
+
+async function printItemRecord(rec, bytes) {
+  rec.prints = (rec.prints || 0) + 1;
+  rec.lastPrinted = Date.now();
+  Store.set('item_records', itemRecords());
+  renderAll();
+  await printPdfBytes(bytes);
+}
+
+async function createItemLabel(item, desc, qty) {
+  item = (item || '').trim(); desc = (desc || '').trim(); qty = (qty || '').trim();
+  if (!item || !desc || !qty) { toast(t('err_empty_item')); return; }
+  try {
+    const key = itemKey(item, desc, qty);
+    const recs = itemRecords();
+    let rec = recs.find(function (r) { return itemKey(r.item, r.desc, r.qty) === key; });
+    let bytes = rec ? await IDB.get(rec.id) : null;
+    if (!bytes || !bytes.length) bytes = await generateItemPdf(item, desc, qty);
+    if (!rec) {
+      rec = { id: Date.now(), item: item, desc: desc, qty: qty, created: Date.now(), prints: 0, lastPrinted: 0, bytesLen: bytes.length };
+      recs.unshift(rec);
+      await IDB.put(rec.id, bytes);
+      Store.set('item_records', recs);
+    }
+    await printItemRecord(rec, bytes);
+  } catch (e) {
+    toast(t('err_create_fail', (e && e.message) || e));
+  }
+}
+
+/* Session draft for the three boxes, same idea as the home drafts:
+   survives switching to Settings or Insights, clears on Create. */
+let itemMem = ['', '', ''];
+try {
+  const saved = JSON.parse(sessionStorage.getItem('draft_items') || '["","",""]');
+  if (Array.isArray(saved) && saved.length === 3) itemMem = saved;
+} catch (e) {}
+function saveItemDraft() {
+  try { sessionStorage.setItem('draft_items', JSON.stringify(itemMem)); } catch (e) {}
+}
+
+function renderItems() {
+  document.getElementById('items-title').textContent = t('items_title');
+  document.getElementById('items-sub').textContent = t('items_sub');
+  const hints = [t('items_hint_item'), t('items_hint_desc'), t('items_hint_qty')];
+  for (let i = 0; i < 3; i++) {
+    const inp = document.getElementById('items-input-' + ['item', 'desc', 'qty'][i]);
+    if (!inp) continue;
+    inp.placeholder = hints[i];
+    inp.setAttribute('aria-label', hints[i]);
+    inp.value = itemMem[i] || '';
+    if (!inp.dataset.bound) {
+      inp.dataset.bound = '1';
+      (function (index, el) {
+        el.addEventListener('input', function () { itemMem[index] = el.value; saveItemDraft(); });
+        el.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter') doCreateItemLabel();
+        });
+      })(i, inp);
+    }
+  }
+  const cb = document.getElementById('btn-items-create');
+  cb.textContent = t('items_create');
+  cb.setAttribute('aria-label', t('items_create'));
+  cb.onclick = doCreateItemLabel;
+  document.getElementById('items-hist-title').textContent = t('items_history');
+  const list = document.getElementById('items-hist-list');
+  list.innerHTML = '';
+  const recs = itemRecords().slice().sort(function (a, b) {
+    return ((b.lastPrinted || b.created || 0) - (a.lastPrinted || a.created || 0));
+  }).slice(0, 20);
+  if (!recs.length) {
+    const e = document.createElement('div');
+    e.className = 'empty'; e.textContent = t('items_empty');
+    list.appendChild(e);
+    return;
+  }
+  recs.forEach(function (r) {
+    const row = document.createElement('div');
+    row.className = 'tray-row';
+    const name = document.createElement('span');
+    name.textContent = r.item + '  ·  ' + r.desc + '  ·  ' + r.qty;
+    const n = document.createElement('span');
+    n.className = 'n'; n.textContent = t('print_count_text', r.prints || 0);
+    row.appendChild(name); row.appendChild(n);
+    const pr = document.createElement('button');
+    pr.type = 'button'; pr.className = 'mini-btn'; pr.textContent = t('items_print');
+    pr.addEventListener('click', async function (e) {
+      e.stopPropagation();
+      try {
+        let bytes = await IDB.get(r.id);
+        if (!bytes || !bytes.length) bytes = await generateItemPdf(r.item, r.desc, r.qty);
+        await printItemRecord(r, bytes);
+      } catch (err) { toast(t('err_create_fail', (err && err.message) || err)); }
+    });
+    const del = document.createElement('button');
+    del.type = 'button'; del.className = 'mini-btn'; del.textContent = t('items_delete');
+    del.addEventListener('click', async function (e) {
+      e.stopPropagation();
+      try { await IDB.del(r.id); } catch (err) {}
+      Store.set('item_records', itemRecords().filter(function (x) { return x.id !== r.id; }));
+      renderAll();
+    });
+    row.appendChild(pr); row.appendChild(del);
+    row.addEventListener('click', function () {
+      itemMem = [r.item, r.desc, r.qty]; saveItemDraft();
+      renderItems();
+      const first = document.getElementById('items-input-item');
+      if (first) first.focus();
+    });
+    list.appendChild(row);
+  });
+}
+
+function doCreateItemLabel() {
+  const vals = itemMem.slice();
+  itemMem = ['', '', '']; saveItemDraft();
+  document.querySelectorAll('#items-form input').forEach(function (el) { el.value = ''; });
+  createItemLabel(vals[0], vals[1], vals[2]);
+}
+
 /* ---------------- insights ---------------- */
 function fmtBytes(b) {
   if (b < 1024) return b + ' B';
@@ -1091,6 +1371,9 @@ function renderSettings() {
   u.appendChild(switchRow(t('setting_barcode'), t('setting_barcode_sub'),
     Store.get('barcode', 'false') === 'true',
     function (on) { Store.set('barcode', on ? 'true' : 'false'); renderAll(); }));
+  u.appendChild(switchRow(t('setting_item_labels'), t('setting_item_labels_sub'),
+    itemLabelsOn(),
+    function (on) { Store.set('item_labels', on ? 'true' : 'false'); renderAll(); }));
   const layout = Store.get('layout', '4x15');
   u.appendChild(setRow(t('setting_layout'), null, layout.replace('x', ' x '), function () {
     pickDialog(t('setting_layout'), LAYOUTS.map(function (l) {
@@ -1256,6 +1539,8 @@ function renderAll() {
   applyScale();
   renderHome();
   renderHomeChips();
+  renderItems();
+  renderDock();
   renderInsights();
   renderSettings();
   renderInfo();
@@ -1286,6 +1571,9 @@ async function init() {
   document.getElementById('tab-create').addEventListener('click', function () {
     if (currentView === 'home') goHome(); else showView('home');
   });
+  document.getElementById('tab-items').addEventListener('click', function () {
+    if (currentView === 'items') goHome(); else showView('items');
+  });
   document.getElementById('tab-insights').addEventListener('click', function () {
     if (currentView === 'insights') goHome(); else showView('insights');
   });
@@ -1296,15 +1584,17 @@ async function init() {
     if (currentView === 'info') goHome(); else showView('info');
   });
 
-  /* swipe between home and insights */
+  /* swipe along the enabled main pages, in dock order */
   const pager = document.getElementById('pager');
   let sx = 0;
   pager.addEventListener('touchstart', function (e) { sx = e.touches[0].clientX; }, { passive: true });
   pager.addEventListener('touchend', function (e) {
-    if (currentView !== 'home' && currentView !== 'insights') return;
+    const pages = mainPages();
+    const idx = pages.indexOf(currentView);
+    if (idx < 0) return;
     const dx = e.changedTouches[0].clientX - sx;
-    if (dx < -60 && currentView === 'home') showView('insights');
-    else if (dx > 60 && currentView === 'insights') showView('home');
+    if (dx < -60 && idx < pages.length - 1) showView(pages[idx + 1]);
+    else if (dx > 60 && idx > 0) showView(pages[idx - 1]);
   }, { passive: true });
 
   document.getElementById('info-version').textContent = 'v' + APP_VERSION;

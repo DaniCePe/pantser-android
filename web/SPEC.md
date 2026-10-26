@@ -574,3 +574,40 @@ steps. The installed PWA always launches at the manifest start_url (the
 app root), so it always opens on the home screen regardless of which view
 was open at install time. Strings for this row live in js/strings-web.js,
 merged over the frozen APK tables.
+
+## 12. Item labels (v1.7.0)
+
+- Utilities switch `item_labels`, default off, EN + ES strings in
+  js/strings-web.js. When on, an Item labels page joins the main pager
+  between Create label and Insights, in dock order; swipe and back
+  follow the enabled page list, and the pager offset is recomputed
+  from that list so toggling cannot strand a page. When off, the app
+  is the old two pages and nothing else changes.
+- The page has three boxes (ITEM #, DESCRIPTION, QTY) and a Create
+  button. Drafts survive view switches for the session and clear on
+  Create, like the home drafts. Generating stays on the item page.
+- The sheet is US Letter, 2 x 2, four identical cells of 3.5 x 5 in
+  with a 0.5 in gutter (cells at x 36/324, y 36/396 in PDF points).
+  Each label is drawn readable-first (5 x 3.5 in, 18 pt padding, logo
+  324 pt wide on top, then ITEM / DESCRIPTION / QTY) and rotated 90
+  degrees counter-clockwise into its cell via one graphics-state
+  transform per cell. Row gap 8 pt; wrapped lines use a hanging
+  indent (continuations align under the value). Font sizes: labels
+  bold 20 pt, ITEM/QTY values 20 pt, DESCRIPTION value 18 pt.
+- Assets are bundled for offline use and cached by the service
+  worker: the Samara Vendrell Products letterhead
+  (assets/logo_readable.jpg) and Tinos regular + bold
+  (assets/fonts/Tinos-*.ttf, open licence, metric-compatible with
+  Times New Roman). The print path is the same hidden-frame browser
+  print flow as size labels, at 100% actual size.
+- History is separate: store key `item_records`, PDF bytes in the
+  same IndexedDB pdf store under the record id. Tap an entry to
+  refill the boxes, Print reprints it (regenerating the PDF if its
+  bytes are gone), Delete removes entry and bytes. Item records are
+  not counted in Insights totals and are not touched by the 7-day
+  cleanup. Identity is the exact ITEM | DESCRIPTION | QTY triple.
+  (pdf-lib embeds custom TTFs only with a fontkit instance
+  registered; the app bundles @pdf-lib/fontkit 1.1.1 as
+  js/fontkit.umd.min.js. Quirk of the bundled pdf-lib build:
+  registerFontkit is an instance method, so it runs on the
+  document after create(), not as a static before it.)

@@ -1,7 +1,8 @@
 /* Pantser PWA service worker. Offline-first: caches the app shell on
    install so the app opens and generates PDFs with no connection.
-   v1.6.0 adds a wide layout for desktop windows and landscape phones. */
-const CACHE = 'pantser-v11';
+   v1.7.0 adds the settings-gated Item labels page (bundled logo and
+   Tinos fonts included so item sheets work offline too). */
+const CACHE = 'pantser-v12';
 const ASSETS = [
   './',
   './index.html',
@@ -10,6 +11,10 @@ const ASSETS = [
   './js/strings.js',
   './js/strings-web.js',
   './js/pdf-lib.min.js',
+  './js/fontkit.umd.min.js',
+  './assets/logo_readable.jpg',
+  './assets/fonts/Tinos-Regular.ttf',
+  './assets/fonts/Tinos-Bold.ttf',
   './manifest.json',
   './icons/icon-192.png',
   './icons/icon-512.png',

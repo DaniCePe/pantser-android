@@ -102,6 +102,10 @@ button.primary:active { opacity: .85; }
   text-align: left;
 }
 
+/* v1.7.0: item labels page */
+#items-form { display: flex; flex-direction: column; gap: 0.625rem; margin-bottom: 0.75rem; }
+.mini-btn { background: none; border: none; color: var(--acc); font-size: 0.8125rem; font-weight: 700; padding: 0.25rem 0.5rem; cursor: pointer; }
+
 .tray { margin-top: 0.5rem; }
 .tray-title { font-weight: 800; font-size: 1rem; margin-bottom: 0.5rem; }
 .tray-row {

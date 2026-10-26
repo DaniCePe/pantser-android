@@ -2,6 +2,13 @@
 
 Every publishing ships with its own dated, versioned entry.
 
+## [2026-10-25] [v1.7.0]
+- New Utilities setting: "Item labels" (switch, default off). When on, an Item labels page appears in the bottom bar between Create label and Insights, swipeable in dock order, with three boxes: ITEM #, DESCRIPTION and QTY.
+- Item labels generate a US Letter sheet of 4 identical box labels, 3.5 by 5 inches each with a 0.5 inch gutter. Each label is drawn readable-first (logo on top, then ITEM / DESCRIPTION / QTY) and rotated 90 degrees counter-clockwise into its cell, so a long description wraps inside its own label with a hanging indent and never spills into another cell. The Samara Vendrell Products letterhead is bundled, and text uses the bundled open-licence Tinos font (labels bold 20pt, ITEM/QTY values 20pt, DESCRIPTION value 18pt).
+- The Item labels page keeps its own history, separate from the size-label tray: tap an entry to refill the three boxes, Print reprints its sheet, Delete removes it. Item history is not counted in Insights totals and is not touched by the 7-day cleanup.
+- When the switch is off, the app is unchanged: two bottom tabs, two pager pages.
+- Service worker cache bumped to pantser-v12.
+
 ## [2026-10-23] [v1.6.0]
 - Added: a wide layout for desktop windows and landscape phones. The top bar and bottom bar stretch to the edges of the screen with the title centered, page content sits in a readable centered column, and the home screen's size box becomes a long centered bar with the Create button under it. Phone portrait layout is unchanged.
 - Added: in the wide layout, the Two-box size input and Barcode labels switches also appear as cards at the top left of the home screen. They mirror the switches in Settings — flipping one flips the other. Two-box input is on by default on wide screens until it is changed.
