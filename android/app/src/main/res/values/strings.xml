@@ -112,4 +112,17 @@
     <string name="setting_barcode">Barcode labels</string>
     <string name="setting_barcode_sub">Label sheets become Code 128 barcodes with the size printed under each one.</string>
     <string name="label_barcode_tag">Barcode</string>
+    <string name="setting_item_labels">Item labels</string>
+    <string name="setting_item_labels_sub">Adds an Item labels page for 2 x 2 box labels with ITEM #, DESCRIPTION and QTY.</string>
+    <string name="items_title">Item labels</string>
+    <string name="items_sub">One sheet holds 4 identical box labels, 3.5 by 5 inches each.</string>
+    <string name="items_hint_item">ITEM #</string>
+    <string name="items_hint_desc">DESCRIPTION</string>
+    <string name="items_hint_qty">QTY</string>
+    <string name="items_create">Create item labels</string>
+    <string name="items_history">History</string>
+    <string name="items_empty">No item labels yet.</string>
+    <string name="items_print">Print</string>
+    <string name="items_delete">Delete</string>
+    <string name="err_empty_item">Fill in ITEM #, DESCRIPTION and QTY first.</string>
 </resources>

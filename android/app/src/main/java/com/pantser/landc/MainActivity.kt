@@ -52,6 +52,9 @@ class MainActivity : AppCompatActivity() {
     private var savedTbSecond = ""
     private var createAction: (() -> Unit)? = null
     private val savedAdvancedInputs = mutableMapOf<Int, String>()
+    /* Item-label page drafts (v1.6.0, mirrors the web session draft):
+       survive leaving the page, clear on Create. */
+    private var savedItemInputs = arrayOf("", "", "")
     private var currentNav = 0
     private var lastBackPressTime = 0L
     private val createLock = Any()
@@ -282,11 +285,21 @@ class MainActivity : AppCompatActivity() {
         }
         navDock.addView(createTab, LinearLayout.LayoutParams(0, dp(46), 1f))
 
+        val itemsTab = ImageView(this).apply {
+            setImageResource(resources.getIdentifier("ic_nav_items", "drawable", packageName))
+            setPadding(dp(12), dp(12), dp(12), dp(12))
+            visibility = if (itemsOn()) View.VISIBLE else View.GONE
+            setOnClickListener { animateClick(this) {
+                if (currentNav == 1) showHome() else showItems()
+            } }
+        }
+        navDock.addView(itemsTab, LinearLayout.LayoutParams(0, dp(46), 1f))
+
         val insightsTab = ImageView(this).apply {
             setImageResource(resources.getIdentifier("ic_nav_insights", "drawable", packageName))
             setPadding(dp(12), dp(12), dp(12), dp(12))
-            setOnClickListener { animateClick(this) { 
-                if (currentNav == 1) showHome() else showInsights() 
+            setOnClickListener { animateClick(this) {
+                if (currentNav == (if (itemsOn()) 2 else 1)) showHome() else showInsights()
             } }
         }
         navDock.addView(insightsTab, LinearLayout.LayoutParams(0, dp(46), 1f))
@@ -301,7 +314,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupMainPager() {
-        mainPager.adapter = ViewPagerAdapter(listOf(homeView(), insightsView()))
+        mainPager.adapter = if (itemsOn()) ViewPagerAdapter(listOf(homeView(), itemsView(), insightsView()))
+        else ViewPagerAdapter(listOf(homeView(), insightsView()))
     }
 
     private fun homeView(): View {
@@ -587,6 +601,160 @@ class MainActivity : AppCompatActivity() {
         return scroll
     }
 
+    /* Item labels page (v1.6.0, port of the web app's v1.7.0 page):
+       three boxes, a Create button, and the page's own history below.
+       Tapping a history row refills the boxes; Print reprints that
+       sheet (regenerating it if its file is gone); Delete removes the
+       entry and its file. Item prints never touch Insights totals. */
+    private fun itemsView(): View {
+        val scroll = ScrollView(this).apply { isVerticalScrollBarEnabled = false }
+        val page = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(4), dp(16), dp(16)) }
+        page.addView(heading(getString(R.string.items_title)))
+        page.addView(body(getString(R.string.items_sub)))
+        fun styleBox(et: EditText) {
+            et.textSize = 16f
+            et.setSingleLine(true)
+            et.setTextColor(textColor())
+            et.setHintTextColor(muted())
+            if (isTerminal()) et.setTypeface(Typeface.MONOSPACE)
+            et.setPadding(dp(14), dp(12), dp(14), dp(12))
+            et.background = when {
+                isRetro() -> insetRetro(if (isDark()) surf() else Color.WHITE)
+                else -> round(if (isDark()) surf() else Color.WHITE, 10)
+            }
+            if (!isRetro() && !isBauhaus() && !isTerminal() && !isDopamine()) {
+                (et.background as? GradientDrawable)?.setStroke(dp(2), textColor())
+            }
+        }
+        val hints = listOf(R.string.items_hint_item, R.string.items_hint_desc, R.string.items_hint_qty)
+        val boxes = hints.mapIndexed { i, h ->
+            EditText(this).apply {
+                styleBox(this)
+                hint = getString(h)
+                setText(savedItemInputs[i])
+                if (savedItemInputs[i].isNotEmpty()) setSelection(savedItemInputs[i].length)
+                addTextChangedListener(object : TextWatcher {
+                    override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                    override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+                    override fun afterTextChanged(s: Editable?) { savedItemInputs[i] = s?.toString() ?: "" }
+                })
+            }
+        }
+        boxes.forEachIndexed { i, box ->
+            val lp = LinearLayout.LayoutParams(-1, dp(48))
+            if (i > 0) lp.topMargin = dp(8)
+            page.addView(box, lp)
+        }
+        val create = Button(this).apply {
+            text = getString(R.string.items_create)
+            textSize = 14f
+            setTextColor(if (isRetro() || isBauhaus()) Color.BLACK else if (isTerminal()) acc() else bg())
+            if (isTerminal()) setTypeface(Typeface.MONOSPACE)
+            background = when {
+                isRetro() -> outsetRetro(Color.parseColor("#C0C0C0"))
+                isBauhaus() -> round(acc(), 0).apply { setStroke(dp(4), Color.BLACK) }
+                isTerminal() -> round(Color.BLACK, 0).apply { setStroke(dp(1), acc()) }
+                else -> round(acc(), 10)
+            }
+            setOnClickListener {
+                val item = boxes[0].text.toString()
+                val desc = boxes[1].text.toString()
+                val qty = boxes[2].text.toString()
+                /* Drafts clear the moment Create is pressed (mirrors
+                   the web app and the home page), even if validation
+                   then fails. */
+                savedItemInputs = arrayOf("", "", "")
+                boxes.forEach { it.setText("") }
+                createItemLabel(item, desc, qty)
+            }
+        }
+        val cp = LinearLayout.LayoutParams(-1, dp(48)); cp.setMargins(0, dp(12), 0, dp(16)); page.addView(create, cp)
+        page.addView(heading(getString(R.string.items_history)))
+        val recs = store.itemRecords()
+        if (recs.isEmpty()) {
+            page.addView(TextView(this).apply { text = getString(R.string.items_empty); textSize = 13f; setTextColor(muted()); if (isTerminal()) setTypeface(Typeface.MONOSPACE); setPadding(dp(4), dp(4), 0, dp(12)) })
+        }
+        recs.forEach { rec ->
+            val row = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(14), dp(8), dp(14), dp(8)); background = if (isRetro()) outsetRetro(surf()) else round(surf(), 10) }
+            row.addView(TextView(this).apply { text = "${rec.item} · ${rec.desc} · ${rec.qty}"; textSize = 15f; setTextColor(textColor()); setTypeface(if (isTerminal()) Typeface.MONOSPACE else null, Typeface.BOLD) })
+            val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+            actions.addView(TextView(this).apply { text = getString(R.string.print_count_text, rec.printCount); textSize = 12f; setTextColor(muted()); if (isTerminal()) setTypeface(Typeface.MONOSPACE) }, LinearLayout.LayoutParams(0, -2, 1f))
+            actions.addView(TextView(this).apply { text = getString(R.string.items_print); textSize = 13f; setTextColor(acc()); setTypeface(if (isTerminal()) Typeface.MONOSPACE else null, Typeface.BOLD); setPadding(dp(12), dp(4), dp(12), dp(4)); setOnClickListener { reprintItem(rec) } })
+            actions.addView(TextView(this).apply { text = getString(R.string.items_delete); textSize = 13f; setTextColor(acc()); setTypeface(if (isTerminal()) Typeface.MONOSPACE else null, Typeface.BOLD); setPadding(dp(12), dp(4), dp(12), dp(4)); setOnClickListener { store.removeItem(rec.id); refreshItemsPage() } })
+            row.addView(actions)
+            row.setOnClickListener {
+                savedItemInputs = arrayOf(rec.item, rec.desc, rec.qty)
+                refreshItemsPage()
+            }
+            val rp = LinearLayout.LayoutParams(-1, -2); rp.setMargins(0, 0, 0, dp(6)); page.addView(row, rp)
+        }
+        scroll.addView(page)
+        return scroll
+    }
+
+    private fun createItemLabel(rawItem: String, rawDesc: String, rawQty: String) {
+        val item = rawItem.trim(); val desc = rawDesc.trim(); val qty = rawQty.trim()
+        if (item.isEmpty() || desc.isEmpty() || qty.isEmpty()) { toast(getString(R.string.err_empty_item)); return }
+        try {
+            synchronized(createLock) {
+                val existing = store.findItem(item, desc, qty)
+                if (existing != null) {
+                    val file = store.itemFileFor(existing)
+                    if (file.exists() && file.length() > 0) {
+                        printItemPdf(existing, file)
+                        return
+                    }
+                }
+                val id = System.currentTimeMillis()
+                val record = AppStore.ItemRecord(id, item, desc, qty, store.itemFileName(id), id)
+                val file = store.itemFileFor(record)
+                FileOutputStream(file).use { ItemPdfGenerator.generate(this, item, desc, qty, it) }
+                store.addItem(record)
+                printItemPdf(record, file)
+            }
+        } catch (e: Exception) { toast(getString(R.string.err_create_fail, e.message)) }
+    }
+
+    private fun reprintItem(rec: AppStore.ItemRecord) {
+        try {
+            val file = store.itemFileFor(rec)
+            if (!file.exists() || file.length() == 0L) {
+                FileOutputStream(file).use { ItemPdfGenerator.generate(this, rec.item, rec.desc, rec.qty, it) }
+            }
+            printItemPdf(rec, file)
+        } catch (e: Exception) { toast(getString(R.string.err_create_fail, e.message)) }
+    }
+
+    /* PrintManager flow for item sheets: same native print path as
+       size labels, but the write-finish hook updates the item
+       record only — never the Insights totals. */
+    private fun printItemPdf(record: AppStore.ItemRecord, file: File) {
+        val manager = getSystemService(PRINT_SERVICE) as PrintManager
+        val adapter = object : PrintDocumentAdapter() {
+            override fun onLayout(oldAttributes: PrintAttributes?, newAttributes: PrintAttributes, cancellationSignal: CancellationSignal, callback: LayoutResultCallback, extras: Bundle?) {
+                if (cancellationSignal.isCanceled) { callback.onLayoutCancelled(); return }
+                callback.onLayoutFinished(PrintDocumentInfo.Builder(file.name).setContentType(PrintDocumentInfo.CONTENT_TYPE_DOCUMENT).setPageCount(1).build(), true)
+            }
+            override fun onWrite(pages: Array<PageRange>, destination: ParcelFileDescriptor, cancellationSignal: CancellationSignal, callback: WriteResultCallback) {
+                try {
+                    FileInputStream(file).use { input -> FileOutputStream(destination.fileDescriptor).apply { input.copyTo(this); flush() } }
+                    if (!cancellationSignal.isCanceled) {
+                        store.markItemPrinted(record.id)
+                        runOnUiThread { refreshItemsPage() }
+                        callback.onWriteFinished(arrayOf(PageRange.ALL_PAGES))
+                    } else callback.onWriteCancelled()
+                } catch (e: Exception) { callback.onWriteFailed(e.message) }
+                finally { destination.close() }
+            }
+        }
+        try {
+            manager.print("Pantser Items · ${record.item}", adapter, PrintAttributes.Builder().setMediaSize(PrintAttributes.MediaSize.NA_LETTER).build())
+        } catch (e: Exception) {
+            android.util.Log.e("PantserPrint", "manager.print failed", e)
+            toast(getString(R.string.err_print_unavailable) + " [" + e.javaClass.simpleName + "]")
+        }
+    }
+
     private fun insightsView(): View {
         val scroll = ScrollView(this).apply { isVerticalScrollBarEnabled = false }
         val page = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(18), dp(6), dp(18), dp(24)) }
@@ -627,7 +795,9 @@ class MainActivity : AppCompatActivity() {
         updateNavTint(0)
     }
 
-    private fun showInsights() {
+    private fun itemsOn() = store.setting("item_labels", "false") == "true"
+
+    private fun showItems() {
         currentNav = 1
         content.removeAllViews()
         if (mainPager.parent == null) content.addView(mainPager)
@@ -635,6 +805,50 @@ class MainActivity : AppCompatActivity() {
         mainPager.visibility = View.VISIBLE
         mainPager.currentItem = 1
         updateNavTint(1)
+    }
+
+    private fun showInsights() {
+        val idx = if (itemsOn()) 2 else 1
+        currentNav = idx
+        content.removeAllViews()
+        if (mainPager.parent == null) content.addView(mainPager)
+        setupMainPager()
+        mainPager.visibility = View.VISIBLE
+        mainPager.currentItem = idx
+        updateNavTint(idx)
+    }
+
+    /* Rebuild the dock tab + pager after the item_labels switch flips,
+       re-seating the main page exactly like the web app does: turning
+       off while on Items lands home; turning on while on Insights
+       keeps Insights (now at position 2). Called from Settings, where
+       the pager is hidden but its currentItem is preserved. */
+    private fun refreshItemsNav() {
+        val oldPos = if (::mainPager.isInitialized) mainPager.currentItem else 0
+        val itemsTab = navDock.getChildAt(1) as? ImageView
+        itemsTab?.visibility = if (itemsOn()) View.VISIBLE else View.GONE
+        setupMainPager()
+        val newPos = if (itemsOn()) {
+            if (oldPos == 1) 2 else oldPos
+        } else {
+            when (oldPos) {
+                2 -> 1
+                1 -> 0
+                else -> oldPos
+            }
+        }
+        if (::mainPager.isInitialized) {
+            mainPager.currentItem = newPos
+            updateNavTint(newPos)
+        }
+    }
+
+    private fun refreshItemsPage() {
+        if (::mainPager.isInitialized && mainPager.visibility == View.VISIBLE) {
+            val cur = mainPager.currentItem
+            setupMainPager()
+            mainPager.currentItem = cur
+        }
     }
 
     private fun animateClick(view: View, onEnd: () -> Unit) {
@@ -702,19 +916,28 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateNavTint(activeIndex: Int) {
+        /* Nav indices: 0 home, 1 items, 2 insights while the items tab
+           is on; with it off, Insights is 1 and the overlays shift
+           down (info 2, settings 3 instead of 3 and 4). The dock
+           always holds three tabs, so child indices are stable. */
+        val insightsIdx = if (itemsOn()) 2 else 1
+        val infoIdx = if (itemsOn()) 3 else 2
+        val settingsIdx = if (itemsOn()) 4 else 3
         val createTab = navDock.getChildAt(0) as? ImageView
-        val insightsTab = navDock.getChildAt(1) as? ImageView
+        val itemsTab = navDock.getChildAt(1) as? ImageView
+        val insightsTab = navDock.getChildAt(2) as? ImageView
         createTab?.setColorFilter(if (activeIndex == 0) acc() else mutedColor())
-        insightsTab?.setColorFilter(if (activeIndex == 1) acc() else mutedColor())
-        settingsBtn.setColorFilter(if (activeIndex == 3) acc() else mutedColor())
+        itemsTab?.setColorFilter(if (activeIndex == 1) acc() else mutedColor())
+        insightsTab?.setColorFilter(if (activeIndex == insightsIdx) acc() else mutedColor())
+        settingsBtn.setColorFilter(if (activeIndex == settingsIdx) acc() else mutedColor())
         settingsBtn.background = when {
-            isRetro() -> if (activeIndex == 3) insetRetro(accSurf()) else outsetRetro(surf())
-            else -> round(if (activeIndex == 3) accSurf() else surf(), 20)
+            isRetro() -> if (activeIndex == settingsIdx) insetRetro(accSurf()) else outsetRetro(surf())
+            else -> round(if (activeIndex == settingsIdx) accSurf() else surf(), 20)
         }
-        infoBtn.setColorFilter(if (activeIndex == 2) acc() else mutedColor())
+        infoBtn.setColorFilter(if (activeIndex == infoIdx) acc() else mutedColor())
         infoBtn.background = when {
-            isRetro() -> if (activeIndex == 2) insetRetro(accSurf()) else outsetRetro(surf())
-            else -> round(if (activeIndex == 2) accSurf() else surf(), 20)
+            isRetro() -> if (activeIndex == infoIdx) insetRetro(accSurf()) else outsetRetro(surf())
+            else -> round(if (activeIndex == infoIdx) accSurf() else surf(), 20)
         }
     }
 
@@ -805,8 +1028,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showInfo() {
-        currentNav = 2
-        updateNavTint(2)
+        currentNav = if (itemsOn()) 3 else 2
+        updateNavTint(currentNav)
         content.removeAllViews()
         mainPager.visibility = View.GONE
         val p1 = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(14), dp(6), dp(14), dp(24)) }
@@ -826,8 +1049,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showSettings(initialPage: Int = 0) {
-        currentNav = 3
-        updateNavTint(3)
+        currentNav = if (itemsOn()) 4 else 3
+        updateNavTint(currentNav)
         content.removeAllViews()
         mainPager.visibility = View.GONE
         val p1 = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(14), dp(6), dp(14), dp(24)) }
@@ -865,6 +1088,10 @@ class MainActivity : AppCompatActivity() {
         }
         switchItem(p1, getString(R.string.setting_barcode), getString(R.string.setting_barcode_sub), store.setting("barcode", "false") == "true") {
             store.setSetting("barcode", it.toString())
+        }
+        switchItem(p1, getString(R.string.setting_item_labels), getString(R.string.setting_item_labels_sub), itemsOn()) {
+            store.setSetting("item_labels", it.toString())
+            refreshItemsNav()
         }
         settingItem(p1, getString(R.string.setting_layout), layoutStr) { chooseLayout() }
         settingItem(p1, getString(R.string.setting_export), getString(R.string.setting_export_sub)) { chooseExport() }

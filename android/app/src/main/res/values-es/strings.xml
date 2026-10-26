@@ -112,4 +112,17 @@
     <string name="setting_barcode">Etiquetas de código de barras</string>
     <string name="setting_barcode_sub">Las hojas se vuelven códigos de barras Code 128 con la talla impresa debajo de cada una.</string>
     <string name="label_barcode_tag">Código de barras</string>
+    <string name="setting_item_labels">Etiquetas de artículo</string>
+    <string name="setting_item_labels_sub">Agrega una página de etiquetas de artículo para hojas 2 x 2 con ITEM #, DESCRIPTION y QTY.</string>
+    <string name="items_title">Etiquetas de artículo</string>
+    <string name="items_sub">Una hoja tiene 4 etiquetas idénticas de 3.5 por 5 pulgadas cada una.</string>
+    <string name="items_hint_item">ITEM #</string>
+    <string name="items_hint_desc">DESCRIPTION</string>
+    <string name="items_hint_qty">QTY</string>
+    <string name="items_create">Crear etiquetas de artículo</string>
+    <string name="items_history">Historial</string>
+    <string name="items_empty">Aún no hay etiquetas de artículo.</string>
+    <string name="items_print">Imprimir</string>
+    <string name="items_delete">Eliminar</string>
+    <string name="err_empty_item">Completa ITEM #, DESCRIPTION y QTY primero.</string>
 </resources>

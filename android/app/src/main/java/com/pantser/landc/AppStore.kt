@@ -20,8 +20,65 @@ class AppStore(context: Context) {
         val kind: String = "text"
     )
 
+    /* Item-label history (v1.6.0, mirrors the web app's item_records):
+       its own store key and its own files, deliberately apart from the
+       size-label records: it is never counted in Insights totals and
+       the 7-day label cleanup never touches it. */
+    data class ItemRecord(
+        val id: Long,
+        val item: String,
+        val desc: String,
+        val qty: String,
+        val fileName: String,
+        val createdAt: Long,
+        val printCount: Int = 0,
+        val lastPrintedAt: Long = 0L
+    )
+
     private val prefs = context.getSharedPreferences("label_store", Context.MODE_PRIVATE)
     private val pdfDir = File(context.filesDir, "labels").apply { mkdirs() }
+
+    fun itemFileName(id: Long) = "item_$id.pdf"
+    fun itemFileFor(record: ItemRecord) = File(pdfDir, record.fileName)
+
+    fun itemRecords(): MutableList<ItemRecord> {
+        val result = mutableListOf<ItemRecord>()
+        val array = try { JSONArray(prefs.getString("item_records", "[]")) } catch (_: Exception) { JSONArray() }
+        for (i in 0 until array.length()) {
+            val o = array.optJSONObject(i) ?: continue
+            result += ItemRecord(o.optLong("id"), o.optString("item"), o.optString("desc"), o.optString("qty"), o.optString("file"), o.optLong("created"), o.optInt("prints"), o.optLong("lastPrinted"))
+        }
+        return result
+    }
+
+    fun findItem(item: String, desc: String, qty: String): ItemRecord? {
+        return itemRecords().find { it.item == item && it.desc == desc && it.qty == qty }
+    }
+
+    fun addItem(record: ItemRecord) {
+        val list = itemRecords(); list.add(0, record); saveItems(list)
+    }
+
+    /* Item prints deliberately do NOT touch total_printed: Insights
+       counts size labels only, exactly like the web app. */
+    fun markItemPrinted(id: Long) {
+        val now = System.currentTimeMillis()
+        saveItems(itemRecords().map { if (it.id == id) it.copy(printCount = it.printCount + 1, lastPrintedAt = now) else it })
+    }
+
+    fun removeItem(id: Long) {
+        val rec = itemRecords().find { it.id == id }
+        if (rec != null) File(pdfDir, rec.fileName).delete()
+        saveItems(itemRecords().filterNot { it.id == id })
+    }
+
+    private fun saveItems(list: List<ItemRecord>) {
+        val array = JSONArray()
+        list.forEach { r -> array.put(JSONObject().apply {
+            put("id", r.id); put("item", r.item); put("desc", r.desc); put("qty", r.qty); put("file", r.fileName); put("created", r.createdAt); put("prints", r.printCount); put("lastPrinted", r.lastPrintedAt)
+        }) }
+        prefs.edit().putString("item_records", array.toString()).apply()
+    }
     private val cacheDir = context.cacheDir
 
     init {
