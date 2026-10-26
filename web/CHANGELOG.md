@@ -2,6 +2,10 @@
 
 Every publishing ships with its own dated, versioned entry.
 
+## [2026-10-26] [v1.8.0]
+- Added: Advanced settings page in the Settings pager, marked (experimental): a Custom margins switch plus a Side margins stepper. When on, 4 x 15 size-label sheets use your side margins instead of the standard 0.30", with left and right edges moving together for symmetry. The stepper moves in 0.05" steps from 0.00" (columns spread to the paper edges) to 0.30" (today's margins); some printers clip at the very edge, so 0.05" is the almost-touching end. Barcodes share the same geometry, so they spread too. Other layouts and the item-label sheets keep the standard margins. Saved margins survive toggling the switch off.
+- Service worker cache bumped to pantser-v15.
+
 ## [2026-10-26] [v1.7.2]
 - Changed: barcode sheets for all-digit sizes of even length now render as Code 128 set C (digit pairs) instead of set B — the same form as the photo barcode alex scanned, and the form bwip-js picks for such strings. It decodes to the same number; only the bar pattern is denser. Anything with letters, spaces, or an odd digit count stays set B exactly as before.
 - Changed: reprinting a digit sheet that was first printed before this update regenerates it as set C under the same record, instead of reprinting its old set-B bytes.

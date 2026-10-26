@@ -3,7 +3,7 @@
    Default theme only (Linear Modern + Ember Night); other styles and
    palettes are reserved slots. No em dashes in this file. */
 
-const APP_VERSION = '1.7.2';
+const APP_VERSION = '1.8.0';
 
 /* ---------------- i18n ---------------- */
 function langCode() {
@@ -146,6 +146,27 @@ function code128Runs(text) {
   return runs;
 }
 
+/* ---------------- custom side margins (v1.8.0) ---------------- */
+/* One linked dial for both edges (symmetry, alex's call): stored as
+   hundredths of an inch, 0 (columns touch the paper edges) to 30
+   (today's 0.30" margins). The master switch gates the effect; the
+   stored value survives toggling off, so re-enabling restores it.
+   Scope, per alex: 4 x 15 size-label sheets only, barcodes included
+   (they share this geometry). Other layouts and the item-label
+   sheets keep the standard margins. */
+function customMarginsOn() {
+  return Store.get('custom_margins', 'false') === 'true';
+}
+function sideMarginVal() {
+  let v = parseInt(Store.get('side_margin', '30'), 10);
+  if (isNaN(v)) v = 30;
+  return Math.min(30, Math.max(0, v));
+}
+function sideMarginPt() { return sideMarginVal() * 0.72; }
+function customMarginsActive() {
+  return customMarginsOn() && Store.get('layout', '4x15') === '4x15';
+}
+
 async function generatePdf(sizeTexts, barcode) {
   const cr = layoutColsRows();
   const cols = cr[0], rows = cr[1];
@@ -155,7 +176,8 @@ async function generatePdf(sizeTexts, barcode) {
   const font = await doc.embedFont(StandardFonts.HelveticaBold);
   const fontReg = barcode ? await doc.embedFont(StandardFonts.Helvetica) : null;
   const FS = 24;
-  const L = 21.6, T = 39.6, R = 21.6, B = 33.84;
+  const side = customMarginsActive() ? sideMarginPt() : 21.6;
+  const L = side, T = 39.6, R = side, B = 33.84;
   const uw = 612 - L - R, uh = 792 - T - B;
   const cw = uw / cols, ch = uh / rows;
   /* Helvetica Bold metrics: ascent 718, descent -207 per 1000 upm.
@@ -1521,6 +1543,46 @@ function renderSettings() {
     }), Store.get('ui_style', 'modern'), function () {});
   }));
   a.appendChild(scaleRow());
+
+  /* advanced (v1.8.0): a fourth settings page. The master switch
+     gates the custom margins; the stepper below moves both edges
+     together (symmetry) in 0.05" steps, like the UI-scale stepper. */
+  document.getElementById('set-adv-title').textContent = t('section_advanced');
+  const av = document.getElementById('set-adv-list');
+  av.innerHTML = '';
+  av.appendChild(switchRow(t('setting_custom_margins'), t('setting_custom_margins_sub'),
+    customMarginsOn(),
+    function (on) { Store.set('custom_margins', on ? 'true' : 'false'); renderAll(); }));
+  av.appendChild(marginRow());
+}
+
+function marginRow() {
+  const b = document.createElement('div');
+  b.className = 'set-row'; b.style.cursor = 'default';
+  const on = customMarginsOn();
+  if (!on) b.style.opacity = '0.5';
+  const left = document.createElement('span');
+  const tt = document.createElement('span'); tt.className = 't'; tt.textContent = t('setting_side_margin');
+  left.appendChild(tt);
+  const s = document.createElement('span'); s.className = 's'; s.textContent = t('setting_side_margin_sub');
+  left.appendChild(s);
+  b.appendChild(left);
+  const st = document.createElement('div'); st.className = 'stepper';
+  const down = document.createElement('button'); down.type = 'button'; down.textContent = '\u2212';
+  down.setAttribute('aria-label', 'smaller');
+  const val = document.createElement('span'); val.className = 'sv'; val.textContent = (sideMarginVal() / 100).toFixed(2) + '"';
+  const up = document.createElement('button'); up.type = 'button'; up.textContent = '+';
+  up.setAttribute('aria-label', 'bigger');
+  down.disabled = !on; up.disabled = !on;
+  const bump = function (d) {
+    Store.set('side_margin', String(Math.min(30, Math.max(0, sideMarginVal() + d))));
+    renderAll();
+  };
+  down.addEventListener('click', function () { bump(-5); });
+  up.addEventListener('click', function () { bump(5); });
+  st.appendChild(down); st.appendChild(val); st.appendChild(up);
+  b.appendChild(st);
+  return b;
 }
 
 function showExportDialog() {

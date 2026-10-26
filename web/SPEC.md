@@ -171,7 +171,13 @@ The web PDF must match this drawing model exactly.
 
 - Page: US Letter, 612 x 792 points (8.5 x 11 in at 72 DPI). One page.
 - Margins: left 0.3 in (21.6 pt), right 0.3 in (21.6 pt), top 0.55 in
-  (39.6 pt), bottom 0.47 in (33.84 pt).
+  (39.6 pt), bottom 0.47 in (33.84 pt). Custom side margins (web
+  v1.8.0, Advanced settings page): when the Custom margins switch is
+  on and the layout is 4x15, left and right both equal the stored
+  side margin (0 to 0.30 in, 0.05 in steps); barcodes use the same
+  column geometry, so they spread too. Other layouts and the
+  item-label sheets always use the standard margins above. Stored
+  margin values survive toggling the switch off.
 - Grid: cols x rows from the layout setting. Default `4x15` (4 columns,
   15 rows). Options: `4x15`, `3x10`, `4x20`, `2x10`. Cell width =
   usable width / cols; cell height = usable height / rows.
@@ -294,6 +300,18 @@ settings). The web keeps the same grouping.
   200%, default 100%. Implemented as the root font size times the scale;
   the whole stylesheet is in rem so the layout reflows. CSS zoom is not
   used. The PDF geometry is not affected.
+
+### 6.4 Advanced page (experimental, web v1.8.0)
+- Custom margins switch (default off; store key `custom_margins`):
+  when on, 4x15 size-label sheets use the stored side margin instead
+  of the standard 0.30" (see §3). Barcodes included.
+- Side margins stepper (store key `side_margin`, hundredths of an
+  inch, default 30): minus / inches / plus, 0.05" steps, 0.00" to
+  0.30". One linked value moves both edges together for symmetry.
+  Disabled (greyed) while the master switch is off. Tray reprints
+  reuse their stored bytes, so only newly created sheets pick up a
+  margin change — records do not store their layout, so regenerating
+  an old entry could silently re-grid it.
 
 ## 7. Persistence contract
 
