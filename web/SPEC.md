@@ -618,8 +618,8 @@ merged over the frozen APK tables.
 
 ## 12. Item labels (v1.7.0)
 
-- Utilities switch `item_labels`, default off, EN + ES strings in
-  js/strings-web.js. When on, an Item labels page joins the main pager
+- Utilities switch `item_labels`, default on since v1.9.2 (was off),
+  EN + ES strings in js/strings-web.js. When on, an Item labels page joins the main pager
   between Create label and Insights, in dock order; swipe and back
   follow the enabled page list, and the pager offset is recomputed
   from that list so toggling cannot strand a page. When off, the app
@@ -630,7 +630,9 @@ merged over the frozen APK tables.
 - The sheet is US Letter, 2 x 2, four identical cells of 3.5 x 5 in
   with a 0.5 in gutter (cells at x 36/324, y 36/396 in PDF points).
   Each label is drawn readable-first (5 x 3.5 in, 18 pt padding, logo
-  324 pt wide on top, then ITEM / DESCRIPTION / QTY) and rotated 90
+  291.6 pt wide on top since v1.9.2 (was 324 pt), shifted up by the
+  shrink amount so the text block rides up twice the shrink, then
+  ITEM / DESCRIPTION / QTY) and rotated 90
   degrees counter-clockwise into its cell via one graphics-state
   transform per cell. Row gap 8 pt; wrapped lines use a hanging
   indent (continuations align under the value). Font sizes: labels

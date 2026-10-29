@@ -10,8 +10,10 @@
    (experimental) tag.
    v1.9.0 prints size-label sheets as HTML on touch devices so the
    system print dialog opens at once.
-   v1.9.1 updates the live address to gst-4649.github.io. */
-const CACHE = 'pantser-v18';
+   v1.9.1 updates the live address to gst-4649.github.io.
+   v1.9.2 shrinks the item-label logo 10% (text rides up twice the
+   shrink) and turns item labels on by default. */
+const CACHE = 'pantser-v19';
 const ASSETS = [
   './',
   './index.html',

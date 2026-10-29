@@ -2,6 +2,11 @@
 
 Every publishing ships with its own dated, versioned entry.
 
+## [2026-10-29] [v1.9.2]
+- Changed: the item-label logo is 10% smaller and shifted up by the shrink amount, so the ITEM / DESCRIPTION / QTY block rides up about twice the shrink and no longer hugs the bottom of the label.
+- Changed: item labels are now on by default (fresh installs get the Item labels page and home toggle without digging into Settings; existing installs keep whatever the switch was already set to).
+- Service worker cache bumped to pantser-v19.
+
 ## [2026-10-29] [v1.9.1]
 - Fixed: live address updated to https://gst-4649.github.io/pantser-android/web/ after the GitHub account rename. The v1.9.0 release notes pointed to the old danicepe.github.io address, which no longer serves the site.
 - Service worker cache bumped to pantser-v18.

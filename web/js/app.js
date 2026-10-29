@@ -3,7 +3,7 @@
    Default theme only (Linear Modern + Ember Night); other styles and
    palettes are reserved slots. No em dashes in this file. */
 
-const APP_VERSION = '1.9.1';
+const APP_VERSION = '1.9.2';
 
 /* ---------------- i18n ---------------- */
 function langCode() {
@@ -581,7 +581,7 @@ function goHome() { showView('home'); }
    pager is exactly the old two pages, home and insights, and nothing
    else in the app changes. */
 function itemLabelsOn() {
-  return Store.get('item_labels', 'false') === 'true';
+  return Store.get('item_labels', 'true') === 'true';
 }
 function mainPages() {
   return itemLabelsOn() ? ['home', 'items', 'insights'] : ['home', 'insights'];
@@ -1065,7 +1065,10 @@ function renderTray() {
 const ITEM_CELL_W = 252, ITEM_CELL_H = 360, ITEM_GUTTER = 36;
 const ITEM_MARGIN_X = 36, ITEM_MARGIN_TOP = 36;
 const ITEM_LABEL_W = 360, ITEM_LABEL_H = 252, ITEM_PAD = 18;
-const ITEM_LOGO_W = 324, ITEM_LOGO_H = ITEM_LOGO_W * 245 / 766;
+const ITEM_LOGO_W = 324 * 0.9, ITEM_LOGO_H = ITEM_LOGO_W * 245 / 766;
+/* v1.9.2: logo 10% smaller, shifted up by the shrink amount, so the
+   text block rides up twice the shrink (logo up 10.4pt, text up 20.7pt). */
+const ITEM_LOGO_SHIFT = 324 * 245 / 766 - ITEM_LOGO_H;
 
 let itemAssets = null;
 async function loadItemAssets() {
@@ -1120,8 +1123,8 @@ async function generateItemPdf(item, description, qty) {
   const black = rgb(0, 0, 0);
 
   function drawLabel() {
-    page.drawImage(logo, { x: ITEM_PAD, y: ITEM_LABEL_H - ITEM_PAD - ITEM_LOGO_H, width: ITEM_LOGO_W, height: ITEM_LOGO_H });
-    let yTop = ITEM_LABEL_H - ITEM_PAD - ITEM_LOGO_H - 12;
+    page.drawImage(logo, { x: ITEM_PAD, y: ITEM_LABEL_H - ITEM_PAD - ITEM_LOGO_H + ITEM_LOGO_SHIFT, width: ITEM_LOGO_W, height: ITEM_LOGO_H });
+    let yTop = ITEM_LABEL_H - ITEM_PAD - ITEM_LOGO_H - 12 + ITEM_LOGO_SHIFT;
     const rows = [
       { label: 'ITEM #:', value: item, size: 20 },
       { label: 'DESCRIPTION:', value: description, size: 18 },
