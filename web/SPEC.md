@@ -165,6 +165,20 @@ file name.
 - Tapping a row calls createLabel with the raw stored size.
 - Empty state text: "Your recently printed labels will appear here."
 
+### 2.5 Print delivery (web v1.9.0)
+- Desktop (fine pointer): the PDF bytes load into a hidden iframe
+  and the frame's print dialog opens — the long-standing path.
+- Touch devices (coarse pointer): size-label sheets print as an
+  HTML rendering of the same sheet (same margins, grid, and barcode
+  math; bars as inline SVG rects so they print without the
+  "background graphics" setting) via window.print() on the main
+  window, which opens the system print dialog at once. Print CSS
+  hides everything except the sheet; one Letter page, zero page
+  margins. If the HTML path throws, it falls back to the PDF flow.
+- iOS installed web apps (standalone webview, where window.print()
+  is a dead call) keep the PDF new-tab flow, as do item-label
+  sheets on all platforms.
+
 ## 3. PDF generation (exact geometry)
 
 The web PDF must match this drawing model exactly.

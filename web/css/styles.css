@@ -190,6 +190,17 @@ button.primary:active { opacity: .85; }
 #dlg-btns button.go { background: var(--acc); color: #fff; }
 
 #print-frame { position: absolute; width: 0; height: 0; border: 0; }
+
+/* v1.9.0: mobile HTML print. The sheet div is screen-hidden; when
+   printing, everything else is hidden and only the sheet prints,
+   on one Letter page with zero page margins. */
+#print-sheet { display: none; }
+@media print {
+  @page { size: Letter; margin: 0; }
+  html, body { margin: 0 !important; padding: 0 !important; }
+  body > *:not(#print-sheet) { display: none !important; }
+  #print-sheet { display: block !important; }
+}
 h2 { font-size: 1.25rem; } h3 { font-size: 1rem; }
 p { line-height: 1.55; }
 

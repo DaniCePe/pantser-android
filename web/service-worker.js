@@ -7,8 +7,10 @@
    v1.7.2 renders all-digit barcodes as Code 128 set C.
    v1.8.0 adds an Advanced settings page with custom side margins.
    v1.8.1 makes 0.15" the standard side margin and drops the
-   (experimental) tag. */
-const CACHE = 'pantser-v16';
+   (experimental) tag.
+   v1.9.0 prints size-label sheets as HTML on touch devices so the
+   system print dialog opens at once. */
+const CACHE = 'pantser-v17';
 const ASSETS = [
   './',
   './index.html',

@@ -3,7 +3,7 @@
    Default theme only (Linear Modern + Ember Night); other styles and
    palettes are reserved slots. No em dashes in this file. */
 
-const APP_VERSION = '1.8.1';
+const APP_VERSION = '1.9.0';
 
 /* ---------------- i18n ---------------- */
 function langCode() {
@@ -294,13 +294,119 @@ async function printRecord(rec, bytes) {
   Store.set('records', Store.get('records', []));
   Store.set('total_printed', Store.get('total_printed', 0) + 1);
   renderAll();
-  await printPdfBytes(bytes);
+  await printPdfBytes(bytes, { sizeTexts: rec.size.split('|'), barcode: (rec.kind || 'text') === 'barcode' });
+}
+
+/* ---------------- mobile HTML print (v1.9.0) ---------------- */
+/* Desktop keeps the PDF-iframe path below (it works perfectly
+   there). On touch devices that path fails — mobile Chrome won't
+   run a PDF viewer inside a hidden frame — so size-label sheets
+   print as an HTML rendering instead, and window.print() on the
+   main window opens the system print dialog at once. iOS installed
+   web apps are the one exception: they run in a webview where
+   window.print() is a dead call, so they keep the PDF new-tab flow.
+   Item-label sheets still use the PDF flow. */
+function isCoarsePointer() {
+  return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+}
+function iosStandalone() {
+  if (window.navigator && window.navigator.standalone) return true;
+  const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  return !!(ios && window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+}
+function useHtmlPrint() {
+  if (iosStandalone()) return false;
+  return isCoarsePointer();
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+/* Caption width in points, via canvas (Helvetica metrics ≈ Arial).
+   Falls back to a rough estimate when no 2d context exists (jsdom). */
+let measureCtx = null;
+function htmlTextWidthPt(txt, sizePt) {
+  try {
+    if (!measureCtx) measureCtx = document.createElement('canvas').getContext('2d');
+    if (measureCtx) {
+      measureCtx.font = '400 ' + (sizePt * 96 / 72) + 'px Helvetica, Arial, sans-serif';
+      return measureCtx.measureText(txt).width * 72 / 96;
+    }
+  } catch (e) {}
+  return txt.length * sizePt * 0.55;
+}
+
+/* Build one Letter sheet as HTML. Geometry mirrors generatePdf
+   exactly: same margins (including the 0.15" standard and custom
+   side margins on 4x15), same cell grid, same barcode math — bars
+   as inline SVG rects (SVG fill always prints; div backgrounds
+   depend on the "background graphics" setting). */
+function buildSheetHtml(sizeTexts, barcode) {
+  const cr = layoutColsRows();
+  const cols = cr[0], rows = cr[1];
+  const side = customMarginsActive() ? sideMarginPt() : 10.8;
+  const L = side, T = 39.6, R = side, B = 33.84;
+  const uw = 612 - L - R, uh = 792 - T - B;
+  const cw = uw / cols, ch = uh / rows;
+  const FS = 24;
+  let cells = '';
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const txt = (c < sizeTexts.length) ? sizeTexts[c] : (sizeTexts[0] || '');
+      if (!txt) continue;
+      const left = L + c * cw, top = T + r * ch;
+      const runs = barcode ? code128Runs(txt) : null;
+      let inner;
+      if (runs) {
+        let modules = 0;
+        runs.forEach(function (w) { modules += w; });
+        let capSize = 11;
+        while (capSize > 6 && htmlTextWidthPt(txt, capSize) > cw * 0.94) capSize -= 0.5;
+        const gap = 3;
+        const barH = Math.min(ch * 0.66, 36, ch - gap - capSize - 1);
+        const moduleW = Math.min((cw * 0.94) / (modules + 20), 2.6,
+          Math.max(0.6, (barH * 3.2) / (modules + 20)));
+        const codeW = moduleW * (modules + 20);
+        let bx = 10 * moduleW, rects = '';
+        runs.forEach(function (w, i) {
+          if (i % 2 === 0) {
+            rects += '<rect x="' + bx.toFixed(3) + '" y="0" width="' + (w * moduleW).toFixed(3) + '" height="' + barH.toFixed(3) + '" fill="#000"/>';
+          }
+          bx += w * moduleW;
+        });
+        const blockH = barH + gap + capSize;
+        const padTop = (ch - blockH) / 2;
+        inner = '<div style="padding-top:' + padTop.toFixed(2) + 'pt;text-align:center;">' +
+          '<svg width="' + codeW.toFixed(3) + 'pt" height="' + barH.toFixed(3) + 'pt" viewBox="0 0 ' + codeW.toFixed(3) + ' ' + barH.toFixed(3) + '" xmlns="http://www.w3.org/2000/svg">' + rects + '</svg>' +
+          '<div style="font-family:Helvetica, Arial, sans-serif;font-size:' + capSize + 'pt;line-height:1;margin-top:' + gap + 'pt;">' + escHtml(txt) + '</div></div>';
+      } else {
+        inner = '<div style="font-family:Helvetica, Arial, sans-serif;font-size:' + FS + 'pt;font-weight:700;line-height:1;">' + escHtml(txt) + '</div>';
+      }
+      cells += '<div style="position:absolute;left:' + left.toFixed(2) + 'pt;top:' + top.toFixed(2) + 'pt;width:' + cw.toFixed(2) + 'pt;height:' + ch.toFixed(2) + 'pt;display:flex;align-items:center;justify-content:center;">' + inner + '</div>';
+    }
+  }
+  return '<div style="position:relative;width:612pt;height:792pt;overflow:hidden;background:#fff;color:#000;">' + cells + '</div>';
+}
+
+function printHtmlSheet(sizeTexts, barcode) {
+  const el = document.getElementById('print-sheet');
+  el.innerHTML = buildSheetHtml(sizeTexts, barcode);
+  window.print();
+  /* The sheet div is screen-hidden, so clearing it is invisible;
+     wait out any slow preview capture before clearing. */
+  setTimeout(function () { el.innerHTML = ''; }, 30000);
 }
 
 /* Shared by size labels and item labels: open the PDF in a hidden
    frame and invoke the browser print dialog. This is the web mapping
    of the Android print dialog. */
-async function printPdfBytes(bytes) {
+async function printPdfBytes(bytes, sheet) {
+  if (sheet && useHtmlPrint()) {
+    try { printHtmlSheet(sheet.sizeTexts, sheet.barcode); return; }
+    catch (e) { /* fall through to the PDF flow, never worse than today */ }
+  }
   const blob = new Blob([bytes], { type: 'application/pdf' });
   const url = URL.createObjectURL(blob);
   try {
