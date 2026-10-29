@@ -3,7 +3,7 @@
    Default theme only (Linear Modern + Ember Night); other styles and
    palettes are reserved slots. No em dashes in this file. */
 
-const APP_VERSION = '1.9.0';
+const APP_VERSION = '1.9.1';
 
 /* ---------------- i18n ---------------- */
 function langCode() {

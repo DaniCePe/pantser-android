@@ -9,8 +9,9 @@
    v1.8.1 makes 0.15" the standard side margin and drops the
    (experimental) tag.
    v1.9.0 prints size-label sheets as HTML on touch devices so the
-   system print dialog opens at once. */
-const CACHE = 'pantser-v17';
+   system print dialog opens at once.
+   v1.9.1 updates the live address to gst-4649.github.io. */
+const CACHE = 'pantser-v18';
 const ASSETS = [
   './',
   './index.html',

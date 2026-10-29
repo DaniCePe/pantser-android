@@ -2,6 +2,10 @@
 
 Every publishing ships with its own dated, versioned entry.
 
+## [2026-10-29] [v1.9.1]
+- Fixed: live address updated to https://gst-4649.github.io/pantser-android/web/ after the GitHub account rename. The v1.9.0 release notes pointed to the old danicepe.github.io address, which no longer serves the site.
+- Service worker cache bumped to pantser-v18.
+
 ## [2026-10-29] [v1.9.0]
 - Added: on touch devices, size-label sheets now print as an HTML rendering instead of a PDF, so tapping Print opens the system print dialog at once instead of opening a new tab. The sheet mirrors the PDF geometry exactly (0.15" standard margins, custom side margins on 4x15, same barcode math with bars as SVG). Desktop keeps the PDF path, which already works perfectly there. iOS installed web apps keep the PDF new-tab flow, since window.print() does nothing in their webview. Item-label sheets still use the PDF flow.
 - Service worker cache bumped to pantser-v17.
