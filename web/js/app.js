@@ -1,9 +1,9 @@
 'use strict';
-/* Pantser web PWA v1. 1:1 port of the Android app per web/SPEC.md.
-   Default theme only (Linear Modern + Ember Night); other styles and
+/* Pantser web PWA. 1:1 port of the Android app per web/SPEC.md.
+   Default theme only (Linear Modern + Ember Night). Other styles and
    palettes are reserved slots. No em dashes in this file. */
 
-const APP_VERSION = '1.10.0';
+const APP_VERSION = '1.11.0';
 
 /* ---------------- i18n ---------------- */
 function langCode() {
@@ -12,8 +12,7 @@ function langCode() {
   if (l === 'en') return 'en';
   return (navigator.language || 'en').toLowerCase().indexOf('es') === 0 ? 'es' : 'en';
 }
-function t(key) {
-  const args = Array.prototype.slice.call(arguments, 1);
+function t(key, ...args) {
   const table = STRINGS[langCode()] || STRINGS.en;
   const s = (key in table) ? table[key] : (STRINGS.en[key] || key);
   return s.replace(/%(\d+)\$([sd])/g, function (m, n, c) {
@@ -31,6 +30,8 @@ const Store = {
   },
   get: function (k, d) { return (k in this.data) ? this.data[k] : d; },
   set: function (k, v) { this.data[k] = v; this.save(); },
+  flag: function (k, d) { return this.get(k, d ? 'true' : 'false') === 'true'; },
+  setFlag: function (k, v) { this.set(k, v ? 'true' : 'false'); },
   save: function () {
     try { localStorage.setItem('label_store', JSON.stringify(this.data)); } catch (e) {}
   }
@@ -68,13 +69,10 @@ const IDB = {
 };
 
 /* ---------------- size helpers ---------------- */
-/* Size identity is the RAW string (v1.3.0, web-only change): case and
-   spacing count, so "32 x32", "32 x 32" and "32 X 32" are three different
-   sizes with three different PDFs. Only the ends are trimmed, by
-   createLabel, before a size gets here. */
-function strictKey(s) {
-  return String(s);
-}
+/* Size identity is the raw string. Case and spacing count, so
+   "32 x32", "32 x 32" and "32 X 32" are three different sizes
+   with three different PDFs. Only the ends are trimmed, by
+   createLabel, before a size gets here. Call sites use String(size). */
 function javaHash(s) {
   let h = 0;
   for (let i = 0; i < s.length; i++) h = (31 * h + s.charCodeAt(i)) | 0;
@@ -111,7 +109,7 @@ function layoutColsRows() {
    modules (alternating bar, space, starting with a bar), or null when
    the text has characters set B cannot encode. */
 const C128_PATTERNS = ['212222','222122','222221','121223','121322','131222','122213','122312','132212','221213','221312','231212','112232','122132','122231','113222','123122','123221','223211','221132','221231','213212','223112','312131','311222','321122','321221','312212','322112','322211','212123','212321','232121','111323','131123','131321','112313','132113','132311','211313','231113','231311','112133','112331','132131','113123','113321','133121','313121','211331','231131','213113','213311','213131','311123','311321','331121','312113','312311','332111','314111','221411','431111','111224','111422','121124','121421','141122','141221','112214','112412','122114','122411','142112','142211','241211','221114','413111','241112','134111','111242','121142','121241','114212','124112','124211','411212','421112','421211','212141','214121','412121','111143','111341','131141','114113','114311','411113','411311','113141','114131','311141','411131','211412','211214','211232','2331112'];
-/* Code 128 set selection (v1.7.2): an all-digit string of even
+/* Code 128 set selection: an all-digit string of even
    length encodes as set C (digit pairs, the form in alex's photo
    barcode and the form bwip-js picks for such strings); anything
    else encodes as set B, exactly as before. Both decode to the same
@@ -146,17 +144,17 @@ function code128Runs(text) {
   return runs;
 }
 
-/* ---------------- custom side margins (v1.8.0) ---------------- */
+/* ---------------- custom side margins ---------------- */
 /* One linked dial for both edges (symmetry, alex's call): stored as
    hundredths of an inch, 0 (columns touch the paper edges) to 30
    (the old 0.30" margins). The master switch gates the effect; the
    stored value survives toggling off, so re-enabling restores it.
    Scope, per alex: 4 x 15 size-label sheets only, barcodes included
    (they share this geometry). Other layouts and the item-label
-   sheets keep the standard margins. v1.8.1: the standard margin is
+   sheets keep the standard margins. The standard margin is
    0.15" (alex's tested pick), so the stored default is 15 too. */
 function customMarginsOn() {
-  return Store.get('custom_margins', 'false') === 'true';
+  return Store.flag('custom_margins', false);
 }
 function sideMarginVal() {
   let v = parseInt(Store.get('side_margin', '15'), 10);
@@ -168,19 +166,39 @@ function customMarginsActive() {
   return customMarginsOn() && Store.get('layout', '4x15') === '4x15';
 }
 
-async function generatePdf(sizeTexts, barcode) {
+function sheetGeometry() {
   const cr = layoutColsRows();
   const cols = cr[0], rows = cr[1];
+  const side = customMarginsActive() ? sideMarginPt() : 10.8;
+  const L = side, T = 39.6, R = side, B = 33.84;
+  const uw = 612 - L - R, uh = 792 - T - B;
+  return { cols: cols, rows: rows, side: side, L: L, T: T, R: R, B: B, uw: uw, uh: uh, cw: uw / cols, ch: uh / rows };
+}
+
+function barcodeLayout(txt, cw, ch, measure, runs) {
+  let modules = 0;
+  runs.forEach(function (w) { modules += w; });
+  let capSize = 11;
+  while (capSize > 6 && measure(txt, capSize) > cw * 0.94) capSize -= 0.5;
+  const gap = 3;
+  const barH = Math.min(ch * 0.66, 36, ch - gap - capSize - 1);
+  const moduleW = Math.min((cw * 0.94) / (modules + 20), 2.6,
+    Math.max(0.6, (barH * 3.2) / (modules + 20)));
+  const codeW = moduleW * (modules + 20);
+  const blockH = barH + gap + capSize;
+  return { runs: runs, modules: modules, capSize: capSize, gap: gap, barH: barH, moduleW: moduleW, codeW: codeW, blockH: blockH };
+}
+
+async function generatePdf(sizeTexts, barcode) {
+  const g = sheetGeometry();
+  const cols = g.cols, rows = g.rows;
   const { PDFDocument, StandardFonts, rgb } = PDFLib;
   const doc = await PDFDocument.create();
   const page = doc.addPage([612, 792]);
   const font = await doc.embedFont(StandardFonts.HelveticaBold);
   const fontReg = barcode ? await doc.embedFont(StandardFonts.Helvetica) : null;
   const FS = 24;
-  const side = customMarginsActive() ? sideMarginPt() : 10.8;
-  const L = side, T = 39.6, R = side, B = 33.84;
-  const uw = 612 - L - R, uh = 792 - T - B;
-  const cw = uw / cols, ch = uh / rows;
+  const L = g.L, T = g.T, cw = g.cw, ch = g.ch;
   /* Helvetica Bold metrics: ascent 718, descent -207 per 1000 upm.
      Baseline offset -(ascent + descent) / 2, same formula as Android. */
   const baseOff = -((718 - 207) / 1000 * FS) / 2;
@@ -196,21 +214,13 @@ async function generatePdf(sizeTexts, barcode) {
            underneath in plain text (human-readable), the way printed
            barcode labels normally look. A 10-module quiet zone is kept
            on both sides so scanners can lock on. */
-        let modules = 0;
-        runs.forEach(function (w) { modules += w; });
-        let capSize = 11;
-        while (capSize > 6 && fontReg.widthOfTextAtSize(txt, capSize) > cw * 0.94) capSize -= 0.5;
-        const gap = 3;
+        const bl = barcodeLayout(txt, cw, ch, function (s, size) { return fontReg.widthOfTextAtSize(s, size); }, runs);
+        const capSize = bl.capSize, gap = bl.gap, barH = bl.barH, moduleW = bl.moduleW, codeW = bl.codeW, blockH = bl.blockH;
         /* Taller and narrower than the text-label footprint, closer to
            a grocery-store barcode: bars take most of the cell height,
            and the total width targets about 3.2x the bar height instead
            of stretching to fill the cell. The module width keeps a
            floor so long sizes stay printable and scannable. */
-        const barH = Math.min(ch * 0.66, 36, ch - gap - capSize - 1);
-        const moduleW = Math.min((cw * 0.94) / (modules + 20), 2.6,
-          Math.max(0.6, (barH * 3.2) / (modules + 20)));
-        const codeW = moduleW * (modules + 20);
-        const blockH = barH + gap + capSize;
         const topEdge = T + r * ch + (ch - blockH) / 2;
         let bx = L + c * cw + (cw - codeW) / 2 + 10 * moduleW;
         const barY = 792 - (topEdge + barH);
@@ -245,16 +255,16 @@ async function createLabel(rawSize, kindOverride) {
   const size = (rawSize || '').trim();
   if (!size) { toast(t('err_empty_size')); return; }
   try {
-    const n = strictKey(size);
+    const n = String(size);
     /* A size can exist as a text label and as a barcode label; they are
        different PDFs, so the record identity includes the kind. The
        kind comes from the Utilities barcode switch, except tray
        reprints pass the record's own kind explicitly. */
-    const kind = kindOverride || (Store.get('barcode', 'false') === 'true' ? 'barcode' : 'text');
+    const kind = kindOverride || (Store.flag('barcode', false) ? 'barcode' : 'text');
     const records = Store.get('records', []);
-    const existing = records.find(function (r) { return strictKey(r.size) === n && (r.kind || 'text') === kind; });
+    const existing = records.find(function (r) { return String(r.size) === n && (r.kind || 'text') === kind; });
     if (existing) {
-      /* v1.7.2: a barcode record printed before set C existed still
+      /* A barcode record printed before set C existed still
          holds set-B bytes. A digit sheet must come out as set C now,
          so instead of reprinting those bytes, regenerate in place
          under the same record (no duplicate, no merge surprise). */
@@ -297,15 +307,15 @@ async function printRecord(rec, bytes) {
   await printPdfBytes(bytes, { sizeTexts: rec.size.split('|'), barcode: (rec.kind || 'text') === 'barcode' });
 }
 
-/* ---------------- mobile HTML print (v1.9.0) ---------------- */
+/* ---------------- mobile HTML print ---------------- */
 /* Desktop keeps the PDF-iframe path below (it works perfectly
-   there). On touch devices that path fails — mobile Chrome won't
-   run a PDF viewer inside a hidden frame — so size-label sheets
+   there). On touch devices that path fails. Mobile Chrome will not
+   run a PDF viewer inside a hidden frame, so size-label sheets
    print as an HTML rendering instead, and window.print() on the
    main window opens the system print dialog at once. iOS installed
    web apps are the one exception: they run in a webview where
    window.print() is a dead call, so they keep the PDF new-tab flow.
-   Item-label sheets still use the PDF flow. */
+   Item-label sheets have their own HTML path in printItemRecord. */
 function isCoarsePointer() {
   return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
 }
@@ -340,16 +350,13 @@ function htmlTextWidthPt(txt, sizePt) {
 
 /* Build one Letter sheet as HTML. Geometry mirrors generatePdf
    exactly: same margins (including the 0.15" standard and custom
-   side margins on 4x15), same cell grid, same barcode math — bars
-   as inline SVG rects (SVG fill always prints; div backgrounds
+   side margins on 4x15), same cell grid, same barcode math. Bars are
+   inline SVG rects (SVG fill always prints; div backgrounds
    depend on the "background graphics" setting). */
 function buildSheetHtml(sizeTexts, barcode) {
-  const cr = layoutColsRows();
-  const cols = cr[0], rows = cr[1];
-  const side = customMarginsActive() ? sideMarginPt() : 10.8;
-  const L = side, T = 39.6, R = side, B = 33.84;
-  const uw = 612 - L - R, uh = 792 - T - B;
-  const cw = uw / cols, ch = uh / rows;
+  const g = sheetGeometry();
+  const cols = g.cols, rows = g.rows;
+  const L = g.L, T = g.T, cw = g.cw, ch = g.ch;
   const FS = 24;
   let cells = '';
   for (let r = 0; r < rows; r++) {
@@ -360,15 +367,8 @@ function buildSheetHtml(sizeTexts, barcode) {
       const runs = barcode ? code128Runs(txt) : null;
       let inner;
       if (runs) {
-        let modules = 0;
-        runs.forEach(function (w) { modules += w; });
-        let capSize = 11;
-        while (capSize > 6 && htmlTextWidthPt(txt, capSize) > cw * 0.94) capSize -= 0.5;
-        const gap = 3;
-        const barH = Math.min(ch * 0.66, 36, ch - gap - capSize - 1);
-        const moduleW = Math.min((cw * 0.94) / (modules + 20), 2.6,
-          Math.max(0.6, (barH * 3.2) / (modules + 20)));
-        const codeW = moduleW * (modules + 20);
+        const bl = barcodeLayout(txt, cw, ch, htmlTextWidthPt, runs);
+        const capSize = bl.capSize, gap = bl.gap, barH = bl.barH, moduleW = bl.moduleW, codeW = bl.codeW;
         let bx = 10 * moduleW, rects = '';
         runs.forEach(function (w, i) {
           if (i % 2 === 0) {
@@ -432,7 +432,7 @@ async function printPdfBytes(bytes, sheet) {
 async function consolidate(records) {
   const map = new Map();
   for (const r of records) {
-    const n = strictKey(r.size) + '|' + (r.kind || 'text');
+    const n = String(r.size) + '|' + (r.kind || 'text');
     if (!map.has(n)) { map.set(n, r); continue; }
     const k = map.get(n);
     const winner = ((r.prints || 0) > (k.prints || 0)) ? r : k;
@@ -467,7 +467,7 @@ async function startup() {
   try { await IDB.open(); } catch (e) { /* storage unavailable: app still runs */ }
   let records = await consolidate(Store.get('records', []));
   Store.set('records', records);
-  if (Store.get('automatic_cleanup', 'true') === 'true') await cleanupOld(7);
+  if (Store.flag('automatic_cleanup', true)) await cleanupOld(7);
 }
 
 /* ---------------- toast + dialog ---------------- */
@@ -580,12 +580,12 @@ function applyTheme() {
 let currentView = 'home';
 function goHome() { showView('home'); }
 
-/* Item labels (v1.7.0) is a settings-gated middle page, like the
+/* Item labels is a settings-gated middle page, like the
    barcode switch gates a rendering mode: when the switch is off the
    pager is exactly the old two pages, home and insights, and nothing
    else in the app changes. */
 function itemLabelsOn() {
-  return Store.get('item_labels', 'true') === 'true';
+  return Store.flag('item_labels', true);
 }
 function mainPages() {
   return itemLabelsOn() ? ['home', 'items', 'insights'] : ['home', 'insights'];
@@ -615,7 +615,7 @@ function renderDock() {
   else document.getElementById('tab-items').style.display = itemLabelsOn() ? '' : 'none';
 }
 
-function showView(v, push) {
+function showView(v) {
   currentView = v;
   const vs = document.getElementById('view-settings');
   const vi = document.getElementById('view-info');
@@ -624,12 +624,11 @@ function showView(v, push) {
   applyPager();
   if (v === 'settings') { vs.classList.remove('hidden'); document.getElementById('dock').style.display = 'none'; }
   if (v === 'info') { vi.classList.remove('hidden'); document.getElementById('dock').style.display = 'none'; }
-  /* No history pushes here (v1.3.2): view changes are internal state.
+  /* No history pushes here: view changes are internal state.
      The old per-navigation pushes made the history stack grow and drain
      unevenly (some paths re-pushed, some did not), so a back press could
      occasionally run past the app's entries and close it. Browser
-     history is now only the single re-arming trap in onPopState. The
-     push argument is kept for call-site compatibility and ignored. */
+     history is now only the single re-arming trap in onPopState. */
 }
 
 let exitArmedAt = 0;
@@ -640,7 +639,7 @@ function tryClose() {
   /* If the browser refuses (tab not opened by script), nothing else
      happens. Recorded in NOT-PORTED.md. */
 }
-/* The back trap (v1.3.2): a sacrificial history entry sits above the
+/* The back trap: a sacrificial history entry sits above the
    base entry so a system back press pops the trap and popstate fires,
    instead of the browser leaving the app. Two kinds of arm:
    - provisional: pushed at startup and after each back press. Android
@@ -676,7 +675,7 @@ function onPopState() {
   if (!exitingApp) armTrap();
 }
 function onBackPressed() {
-  /* Belt and braces (v1.3.1, extended v1.7.0): if a pager page other
+  /* Belt and braces: if a pager page other
      than home is what is actually on screen, back goes home even if
      currentView somehow disagrees. */
   const pagerEl = document.getElementById('pager');
@@ -700,7 +699,7 @@ function onBackPressed() {
      onPopState re-arms the trap after every back press. */
 }
 
-/* small swipe pager with dots. v1.7.1: the Settings and Info pagers
+/* small swipe pager with dots. The Settings and Info pagers
    also answer to arrow keys and to on-screen edge arrows, so they
    work for mouse and keyboard users on desktop, not just touch
    swipes. Keys only act while their overlay is the current view, and
@@ -769,7 +768,7 @@ function applyStrings() {
 }
 
 /* ---------------- home ---------------- */
-/* Session drafts (v1.3.0): what is typed on the home screen is kept in
+/* Session drafts: what is typed on the home screen is kept in
    sessionStorage, so it survives switching to Settings, Insights or Info
    (and the renders those cause) and even a page reload, but a fresh app
    launch starts blank. Pressing Create Label clears the active draft. */
@@ -837,10 +836,10 @@ function renderHomeChips() {
   if (!box) return;
   box.innerHTML = '';
   box.appendChild(switchRow(t('setting_two_box'), t('setting_two_box_sub'), twoBoxOn(),
-    function (on) { Store.set('two_box', on ? 'true' : 'false'); renderAll(); }));
+    function (on) { Store.setFlag('two_box', on); renderAll(); }));
   box.appendChild(switchRow(t('setting_barcode'), t('setting_barcode_sub'),
-    Store.get('barcode', 'false') === 'true',
-    function (on) { Store.set('barcode', on ? 'true' : 'false'); renderAll(); }));
+    Store.flag('barcode', false),
+    function (on) { Store.setFlag('barcode', on); renderAll(); }));
 }
 
 function renderHome() {
@@ -849,7 +848,7 @@ function renderHome() {
   document.getElementById('home-privacy').textContent = t('privacy_note');
   const wrap = document.getElementById('home-inputs');
   wrap.innerHTML = '';
-  const advanced = Store.get('advanced_mode', 'false') === 'true';
+  const advanced = Store.flag('advanced_mode', false);
   const cols = layoutColsRows()[0];
   const jumpBtn = document.getElementById('btn-jump');
 
@@ -875,7 +874,7 @@ function renderHome() {
       binp.type = 'text'; binp.id = 'tb-input-' + bi;
       binp.inputMode = 'numeric'; binp.setAttribute('pattern', '[0-9]*');
       binp.setAttribute('autocomplete', 'off');
-      /* No maxlength on purpose (v1.3.1): a digit typed into a full box
+      /* No maxlength on purpose: a digit typed into a full box
          must reach the input handler so it can be forwarded to the next
          box, instead of being silently swallowed by the character cap. */
       binp.value = tbMem[bi] || '';
@@ -889,7 +888,7 @@ function renderHome() {
         if (index === 0 && digits.length > 2) {
           /* First box is full (for example after backspace jumped back to
              it): forward the extra digit into the second box and move
-             focus there, like typing had just continued across (v1.3.1). */
+             focus there, like typing had continued across. */
           const extra = digits.slice(2);
           digits = digits.slice(0, 2);
           el.value = digits; tbMem[0] = digits;
@@ -974,7 +973,6 @@ function renderHome() {
       }
       jumpBtn.classList.toggle('hidden', !skipped);
     };
-    window.__refreshAsterisks = refreshAsterisks;
     jumpBtn.textContent = t('jump_to_previous_unsaved');
     jumpBtn.onclick = function () {
       const i = firstSkipped();
@@ -993,7 +991,7 @@ function renderHome() {
 function doCreateClassic() {
   const el = document.getElementById('classic-input');
   const v = el ? el.value : classicMem;
-  /* Pressing Create clears the draft right away (v1.3.0): the app cannot
+  /* Pressing Create clears the draft right away: the app cannot
      know whether anything truly printed, and the size lands in the quick
      print tray / history, so it is one tap away if it is needed again. */
   classicMem = ''; tbMem = ['', '']; saveDrafts();
@@ -1026,7 +1024,7 @@ function renderTray() {
   const seen = new Set();
   let recs = Store.get('records', []).filter(function (r) {
     if (!(r.prints > 0)) return false;
-    const n = strictKey(r.size) + '|' + (r.kind || 'text');
+    const n = String(r.size) + '|' + (r.kind || 'text');
     if (seen.has(n)) return false;
     seen.add(n);
     return true;
@@ -1056,7 +1054,7 @@ function renderTray() {
   });
 }
 
-/* ---------------- item labels (v1.7.0) ---------------- */
+/* ---------------- item labels ---------------- */
 /* 2x2 box-label sheets, ported from the standalone test generator
    (~/workspace/item-labels-test/make_labels.py). Same geometry, same
    rule: each label is drawn readable-first (5 x 3.5in landscape, logo
@@ -1070,7 +1068,7 @@ const ITEM_CELL_W = 252, ITEM_CELL_H = 360, ITEM_GUTTER = 36;
 const ITEM_MARGIN_X = 36, ITEM_MARGIN_TOP = 36;
 const ITEM_LABEL_W = 360, ITEM_LABEL_H = 252, ITEM_PAD = 18;
 const ITEM_LOGO_W = 324 * 0.9, ITEM_LOGO_H = ITEM_LOGO_W * 245 / 766;
-/* v1.9.2: logo 10% smaller, shifted up by the shrink amount, so the
+/* Logo 10% smaller, shifted up by the shrink amount, so the
    text block rides up twice the shrink (logo up 10.4pt, text up 20.7pt). */
 const ITEM_LOGO_SHIFT = 324 * 245 / 766 - ITEM_LOGO_H;
 
@@ -1603,7 +1601,7 @@ function renderSettings() {
       { key: 'es', label: t('lang_es') }
     ], lg, function (k) { Store.set('lang', k); applyStrings(); renderAll(); });
   }));
-  const adv = Store.get('advanced_mode', 'false') === 'true';
+  const adv = Store.flag('advanced_mode', false);
   const cols = layoutColsRows()[0];
   const pmLabel = adv ? t('print_mode_advanced', cols, cols) : t('print_mode_classic');
   u.appendChild(setRow(t('setting_print_mode'), null, pmLabel, function () {
@@ -1614,13 +1612,13 @@ function renderSettings() {
   }));
   u.appendChild(switchRow(t('setting_two_box'), t('setting_two_box_sub'),
     twoBoxOn(),
-    function (on) { Store.set('two_box', on ? 'true' : 'false'); renderAll(); }));
+    function (on) { Store.setFlag('two_box', on); renderAll(); }));
   u.appendChild(switchRow(t('setting_barcode'), t('setting_barcode_sub'),
-    Store.get('barcode', 'false') === 'true',
-    function (on) { Store.set('barcode', on ? 'true' : 'false'); renderAll(); }));
+    Store.flag('barcode', false),
+    function (on) { Store.setFlag('barcode', on); renderAll(); }));
   u.appendChild(switchRow(t('setting_item_labels'), t('setting_item_labels_sub'),
     itemLabelsOn(),
-    function (on) { Store.set('item_labels', on ? 'true' : 'false'); renderAll(); }));
+    function (on) { Store.setFlag('item_labels', on); renderAll(); }));
   const layout = Store.get('layout', '4x15');
   u.appendChild(setRow(t('setting_layout'), null, layout.replace('x', ' x '), function () {
     pickDialog(t('setting_layout'), LAYOUTS.map(function (l) {
@@ -1634,9 +1632,9 @@ function renderSettings() {
   const s = document.getElementById('set-storage-list');
   s.innerHTML = '';
   s.appendChild(switchRow(t('setting_cleanup'), t('setting_cleanup_sub'),
-    Store.get('automatic_cleanup', 'true') === 'true',
+    Store.flag('automatic_cleanup', true),
     async function (on) {
-      Store.set('automatic_cleanup', on ? 'true' : 'false');
+      Store.setFlag('automatic_cleanup', on);
       if (on) await cleanupOld(7);
       renderAll();
     }));
@@ -1708,7 +1706,7 @@ function renderSettings() {
   }));
   a.appendChild(scaleRow());
 
-  /* advanced (v1.8.0; no longer experimental as of v1.8.1): a fourth
+  /* advanced: a fourth
      settings page. The master switch gates the custom margins; the
      stepper below moves both edges together (symmetry) in 0.05"
      steps, like the UI-scale stepper. */
@@ -1717,37 +1715,41 @@ function renderSettings() {
   av.innerHTML = '';
   av.appendChild(switchRow(t('setting_custom_margins'), t('setting_custom_margins_sub'),
     customMarginsOn(),
-    function (on) { Store.set('custom_margins', on ? 'true' : 'false'); renderAll(); }));
+    function (on) { Store.setFlag('custom_margins', on); renderAll(); }));
   av.appendChild(marginRow());
 }
 
-function marginRow() {
+function stepperRow(title, sub, valueText, disabled, onBump) {
   const b = document.createElement('div');
   b.className = 'set-row'; b.style.cursor = 'default';
-  const on = customMarginsOn();
-  if (!on) b.style.opacity = '0.5';
+  if (disabled) b.style.opacity = '0.5';
   const left = document.createElement('span');
-  const tt = document.createElement('span'); tt.className = 't'; tt.textContent = t('setting_side_margin');
+  const tt = document.createElement('span'); tt.className = 't'; tt.textContent = title;
   left.appendChild(tt);
-  const s = document.createElement('span'); s.className = 's'; s.textContent = t('setting_side_margin_sub');
+  const s = document.createElement('span'); s.className = 's'; s.textContent = sub;
   left.appendChild(s);
   b.appendChild(left);
   const st = document.createElement('div'); st.className = 'stepper';
   const down = document.createElement('button'); down.type = 'button'; down.textContent = '\u2212';
   down.setAttribute('aria-label', 'smaller');
-  const val = document.createElement('span'); val.className = 'sv'; val.textContent = (sideMarginVal() / 100).toFixed(2) + '"';
+  const val = document.createElement('span'); val.className = 'sv'; val.textContent = valueText;
   const up = document.createElement('button'); up.type = 'button'; up.textContent = '+';
   up.setAttribute('aria-label', 'bigger');
-  down.disabled = !on; up.disabled = !on;
-  const bump = function (d) {
-    Store.set('side_margin', String(Math.min(30, Math.max(0, sideMarginVal() + d))));
-    renderAll();
-  };
-  down.addEventListener('click', function () { bump(-5); });
-  up.addEventListener('click', function () { bump(5); });
+  down.disabled = disabled; up.disabled = disabled;
+  down.addEventListener('click', function () { onBump(-5); });
+  up.addEventListener('click', function () { onBump(5); });
   st.appendChild(down); st.appendChild(val); st.appendChild(up);
   b.appendChild(st);
   return b;
+}
+
+function marginRow() {
+  const on = customMarginsOn();
+  return stepperRow(t('setting_side_margin'), t('setting_side_margin_sub'),
+    (sideMarginVal() / 100).toFixed(2) + '"', !on, function (d) {
+      Store.set('side_margin', String(Math.min(30, Math.max(0, sideMarginVal() + d))));
+      renderAll();
+    });
 }
 
 function showExportDialog() {
@@ -1783,7 +1785,7 @@ async function exportPdf(rec) {
   }
 }
 
-/* ---------------- UI scale (v1.3.0) ---------------- */
+/* ---------------- UI scale ---------------- */
 /* Same approach as the JeansMixing web app: a root font-size scale, so
    every rem in the stylesheet grows or shrinks and the layout reflows.
    CSS zoom is never used; it shrinks the box, not the layout. */
@@ -1796,29 +1798,11 @@ function applyScale() {
   document.documentElement.style.setProperty('--scale', String(uiScaleVal() / 100));
 }
 function scaleRow() {
-  const b = document.createElement('div');
-  b.className = 'set-row'; b.style.cursor = 'default';
-  const left = document.createElement('span');
-  const tt = document.createElement('span'); tt.className = 't'; tt.textContent = t('setting_ui_scale');
-  left.appendChild(tt);
-  const s = document.createElement('span'); s.className = 's'; s.textContent = t('setting_ui_scale_sub');
-  left.appendChild(s);
-  b.appendChild(left);
-  const st = document.createElement('div'); st.className = 'stepper';
-  const down = document.createElement('button'); down.type = 'button'; down.textContent = '\u2212';
-  down.setAttribute('aria-label', 'smaller');
-  const val = document.createElement('span'); val.className = 'sv'; val.textContent = uiScaleVal() + '%';
-  const up = document.createElement('button'); up.type = 'button'; up.textContent = '+';
-  up.setAttribute('aria-label', 'bigger');
-  const bump = function (d) {
-    Store.set('ui_scale', String(Math.min(200, Math.max(50, uiScaleVal() + d))));
-    applyScale(); renderAll();
-  };
-  down.addEventListener('click', function () { bump(-5); });
-  up.addEventListener('click', function () { bump(5); });
-  st.appendChild(down); st.appendChild(val); st.appendChild(up);
-  b.appendChild(st);
-  return b;
+  return stepperRow(t('setting_ui_scale'), t('setting_ui_scale_sub'),
+    uiScaleVal() + '%', false, function (d) {
+      Store.set('ui_scale', String(Math.min(200, Math.max(50, uiScaleVal() + d))));
+      applyScale(); renderAll();
+    });
 }
 
 /* ---------------- render all + init ---------------- */
@@ -1848,7 +1832,7 @@ async function init() {
   }
   applyScale();
   renderAll();
-  /* The main pager is NOT a makePager (v1.3.1): showView owns its
+  /* The main pager is NOT a makePager: showView owns its
      transform and currentView. Two controllers could desync (swiping to
      Insights moved the pager visually while back handling trusted the
      other controller's state, and back exited the app). makePager below
@@ -1903,7 +1887,7 @@ async function init() {
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('service-worker.js').catch(function () {});
   }
-  showView('home', false);
+  showView('home');
   /* Desktop-wide screens behave like a search page: the caret is
      already waiting in the size box (the left box, in two-box mode)
      when the app opens. Short landscape phones are excluded so the

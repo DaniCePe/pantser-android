@@ -2,6 +2,15 @@
 
 Every publishing ships with its own dated, versioned entry.
 
+## [2026-10-30] [v1.11.0]
+- Changed: cleaned up the web code for readability, with no change
+  to what the app does. The code is human readable now, no
+  programming code mudpile. History comments that repeated the
+  changelog are trimmed to short why notes. Duplicated barcode
+  sizing, sheet geometry, and stepper code now share one helper
+  each. Small dead wrappers are removed.
+- Service worker cache bumped to pantser-v21.
+
 ## [2026-10-30] [v1.10.0]
 - Added: item-label sheets now print as an HTML rendering on touch devices, the same instant system print dialog size labels got in v1.9.0, instead of opening a PDF tab. The sheet mirrors the PDF exactly (2x2 cells, 10% smaller logo with the v1.9.2 shift, Tinos rows with hanging indent, labels rotated into their cells). Desktop keeps the PDF path, and iOS installed web apps keep the PDF new-tab flow.
 - Service worker cache bumped to pantser-v20.

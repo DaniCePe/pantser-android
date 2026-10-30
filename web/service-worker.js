@@ -1,21 +1,8 @@
 /* Pantser PWA service worker. Offline-first: caches the app shell on
    install so the app opens and generates PDFs with no connection.
-   v1.7.0 adds the settings-gated Item labels page (bundled logo and
-   Tinos fonts included so item sheets work offline too).
-   v1.7.1 centers the item labels button on desktop and gives the
-   Settings and Info pagers arrow keys plus edge arrows.
-   v1.7.2 renders all-digit barcodes as Code 128 set C.
-   v1.8.0 adds an Advanced settings page with custom side margins.
-   v1.8.1 makes 0.15" the standard side margin and drops the
-   (experimental) tag.
-   v1.9.0 prints size-label sheets as HTML on touch devices so the
-   system print dialog opens at once.
-   v1.9.1 updates the live address to gst-4649.github.io.
-   v1.9.2 shrinks the item-label logo 10% (text rides up twice the
-   shrink) and turns item labels on by default.
-   v1.10.0 prints item-label sheets as HTML on touch devices, the
-   same instant-dialog path size labels got in v1.9.0. */
-const CACHE = 'pantser-v20';
+   Version history lives in web/CHANGELOG.md.
+   v1.11.0 cleans up the web code, with no behavior change. */
+const CACHE = 'pantser-v21';
 const ASSETS = [
   './',
   './index.html',
