@@ -12,8 +12,10 @@
    system print dialog opens at once.
    v1.9.1 updates the live address to gst-4649.github.io.
    v1.9.2 shrinks the item-label logo 10% (text rides up twice the
-   shrink) and turns item labels on by default. */
-const CACHE = 'pantser-v19';
+   shrink) and turns item labels on by default.
+   v1.10.0 prints item-label sheets as HTML on touch devices, the
+   same instant-dialog path size labels got in v1.9.0. */
+const CACHE = 'pantser-v20';
 const ASSETS = [
   './',
   './index.html',

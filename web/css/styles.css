@@ -1,7 +1,12 @@
 /* Pantser web v1 theme: Linear Modern style + Ember Night palette.
    Token slots reserved for the other 4 styles and 6 palettes (see SPEC.md).
    v1.3.0: every size below is in rem and the root font size follows the
-   --scale custom property (UI scale setting, 50 to 200%). Never CSS zoom. */
+   --scale custom property (UI scale setting, 50 to 200%). Never CSS zoom.
+   v1.10.0: Tinos faces for the HTML item-label print sheet (bundled
+   files, already in the service-worker cache; only the print sheet
+   uses this family, so nothing on screen changes). */
+@font-face { font-family: 'Tinos'; src: url('../assets/fonts/Tinos-Regular.ttf') format('truetype'); font-weight: 400; font-style: normal; }
+@font-face { font-family: 'Tinos'; src: url('../assets/fonts/Tinos-Bold.ttf') format('truetype'); font-weight: 700; font-style: normal; }
 html { font-size: calc(16px * var(--scale, 1)); }
 
 :root,

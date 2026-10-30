@@ -3,7 +3,7 @@
    Default theme only (Linear Modern + Ember Night); other styles and
    palettes are reserved slots. No em dashes in this file. */
 
-const APP_VERSION = '1.9.2';
+const APP_VERSION = '1.10.0';
 
 /* ---------------- i18n ---------------- */
 function langCode() {
@@ -390,13 +390,17 @@ function buildSheetHtml(sizeTexts, barcode) {
   return '<div style="position:relative;width:612pt;height:792pt;overflow:hidden;background:#fff;color:#000;">' + cells + '</div>';
 }
 
-function printHtmlSheet(sizeTexts, barcode) {
+function printHtml(html) {
   const el = document.getElementById('print-sheet');
-  el.innerHTML = buildSheetHtml(sizeTexts, barcode);
+  el.innerHTML = html;
   window.print();
   /* The sheet div is screen-hidden, so clearing it is invisible;
      wait out any slow preview capture before clearing. */
   setTimeout(function () { el.innerHTML = ''; }, 30000);
+}
+
+function printHtmlSheet(sizeTexts, barcode) {
+  printHtml(buildSheetHtml(sizeTexts, barcode));
 }
 
 /* Shared by size labels and item labels: open the PDF in a hidden
@@ -1165,6 +1169,35 @@ async function generateItemPdf(item, description, qty) {
   return await doc.save();
 }
 
+/* Build one 2x2 item sheet as HTML, mirroring generateItemPdf exactly:
+   same cells, same logo size and shift, same row sizes, gaps, and
+   hanging indent (the flex value span wraps under its own start).
+   Each label is laid out readable-first (logo on top, rows below)
+   and rotated 90 deg counter-clockwise into its portrait cell, the
+   same transform the PDF uses. */
+function buildItemSheetHtml(item, description, qty) {
+  const rows = [
+    { label: 'ITEM #:', value: item, size: 20 },
+    { label: 'DESCRIPTION:', value: description, size: 18 },
+    { label: 'QTY:', value: qty, size: 20 }
+  ];
+  const rowHtml = rows.map(function (row) {
+    return '<div style="display:flex;line-height:27pt;margin-bottom:8pt;">' +
+      '<span style="font-family:Tinos,\'Times New Roman\',serif;font-weight:700;font-size:20pt;white-space:nowrap;">' + row.label + '&nbsp;</span>' +
+      '<span style="font-family:Tinos,\'Times New Roman\',serif;font-size:' + row.size + 'pt;">' + escHtml(row.value) + '</span></div>';
+  }).join('');
+  const logoTop = ITEM_PAD - ITEM_LOGO_SHIFT;
+  const textTop = ITEM_PAD + ITEM_LOGO_H + 12 - ITEM_LOGO_SHIFT;
+  const label = '<div style="position:absolute;left:-54pt;top:54pt;width:360pt;height:252pt;transform:rotate(-90deg);transform-origin:center;">' +
+    '<img src="assets/logo_readable.jpg" alt="" style="position:absolute;left:18pt;top:' + logoTop.toFixed(2) + 'pt;width:' + ITEM_LOGO_W.toFixed(2) + 'pt;height:auto;display:block;">' +
+    '<div style="position:absolute;left:18pt;top:' + textTop.toFixed(2) + 'pt;width:324pt;">' + rowHtml + '</div></div>';
+  const cells = [[36, 36], [324, 36], [36, 396], [324, 396]];
+  const cellHtml = cells.map(function (cell) {
+    return '<div style="position:absolute;left:' + cell[0] + 'pt;top:' + cell[1] + 'pt;width:252pt;height:360pt;">' + label + '</div>';
+  }).join('');
+  return '<div style="position:relative;width:612pt;height:792pt;overflow:hidden;background:#fff;color:#000;">' + cellHtml + '</div>';
+}
+
 /* Item history lives apart from the size-label tray: its own store
    key, its own list on the item page, and it is deliberately not
    counted in Insights totals and not touched by the 7-day cleanup. */
@@ -1180,6 +1213,27 @@ async function printItemRecord(rec, bytes) {
   rec.lastPrinted = Date.now();
   Store.set('item_records', itemRecords());
   renderAll();
+  if (useHtmlPrint()) {
+    try {
+      /* Best effort: let the Tinos faces and the cached logo land
+         before the dialog captures, so the first print matches the
+         PDF. Any failure still falls through to the PDF flow. */
+      if (document.fonts && document.fonts.load) {
+        await document.fonts.load('700 20pt Tinos');
+        await document.fonts.load('400 18pt Tinos');
+      }
+      await Promise.race([
+        new Promise(function (res) {
+          const im = new Image();
+          im.onload = res; im.onerror = res;
+          im.src = 'assets/logo_readable.jpg';
+        }),
+        new Promise(function (res) { setTimeout(res, 2000); })
+      ]);
+      printHtml(buildItemSheetHtml(rec.item, rec.desc, rec.qty));
+      return;
+    } catch (e) { /* fall through to the PDF flow, never worse than today */ }
+  }
   await printPdfBytes(bytes);
 }
 

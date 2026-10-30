@@ -176,8 +176,12 @@ file name.
   hides everything except the sheet; one Letter page, zero page
   margins. If the HTML path throws, it falls back to the PDF flow.
 - iOS installed web apps (standalone webview, where window.print()
-  is a dead call) keep the PDF new-tab flow, as do item-label
-  sheets on all platforms.
+  is a dead call) keep the PDF new-tab flow.
+- Item-label sheets (web v1.10.0) use the same HTML path on touch
+  devices: the sheet is built as HTML mirroring the PDF geometry
+  (2x2 cells, shrunken logo, Tinos rows, hanging indent, labels
+  rotated into their cells) and printed via window.print(), with
+  the PDF flow as fallback. Desktop keeps the PDF path.
 
 ## 3. PDF generation (exact geometry)
 
@@ -641,8 +645,9 @@ merged over the frozen APK tables.
   worker: the Samara Vendrell Products letterhead
   (assets/logo_readable.jpg) and Tinos regular + bold
   (assets/fonts/Tinos-*.ttf, open licence, metric-compatible with
-  Times New Roman). The print path is the same hidden-frame browser
-  print flow as size labels, at 100% actual size.
+  Times New Roman). The print path is the same browser print flow
+  as size labels, at 100% actual size: PDF on desktop, the HTML
+  sheet on touch devices since v1.10.0 (see 2.5).
 - History is separate: store key `item_records`, PDF bytes in the
   same IndexedDB pdf store under the record id. Tap an entry to
   refill the boxes, Print reprints it (regenerating the PDF if its

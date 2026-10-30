@@ -2,6 +2,10 @@
 
 Every publishing ships with its own dated, versioned entry.
 
+## [2026-10-30] [v1.10.0]
+- Added: item-label sheets now print as an HTML rendering on touch devices, the same instant system print dialog size labels got in v1.9.0, instead of opening a PDF tab. The sheet mirrors the PDF exactly (2x2 cells, 10% smaller logo with the v1.9.2 shift, Tinos rows with hanging indent, labels rotated into their cells). Desktop keeps the PDF path, and iOS installed web apps keep the PDF new-tab flow.
+- Service worker cache bumped to pantser-v20.
+
 ## [2026-10-29] [v1.9.2]
 - Changed: the item-label logo is 10% smaller and shifted up by the shrink amount, so the ITEM / DESCRIPTION / QTY block rides up about twice the shrink and no longer hugs the bottom of the label.
 - Changed: item labels are now on by default (fresh installs get the Item labels page and home toggle without digging into Settings; existing installs keep whatever the switch was already set to).
