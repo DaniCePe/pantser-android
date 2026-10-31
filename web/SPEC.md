@@ -176,7 +176,10 @@ file name.
   hides everything except the sheet; one Letter page, zero page
   margins. If the HTML path throws, it falls back to the PDF flow.
 - iOS installed web apps (standalone webview, where window.print()
-  is a dead call) keep the PDF new-tab flow.
+  is a dead call and the hidden-frame PDF print is a silent no-op)
+  hand the PDF to the native share sheet instead (web v1.12.0), so
+  the user picks Print from it; if file sharing is unavailable,
+  they fall back to the PDF flow.
 - Item-label sheets (web v1.10.0) use the same HTML path on touch
   devices: the sheet is built as HTML mirroring the PDF geometry
   (2x2 cells, shrunken logo, Tinos rows, hanging indent, labels

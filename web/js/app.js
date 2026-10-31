@@ -3,7 +3,7 @@
    Default theme only (Linear Modern + Ember Night). Other styles and
    palettes are reserved slots. No em dashes in this file. */
 
-const APP_VERSION = '1.11.0';
+const APP_VERSION = '1.12.0';
 
 /* ---------------- i18n ---------------- */
 function langCode() {
@@ -403,6 +403,25 @@ function printHtmlSheet(sizeTexts, barcode) {
   printHtml(buildSheetHtml(sizeTexts, barcode));
 }
 
+/* iOS standalone web apps have no print UI: window.print() and the
+   hidden-frame PDF print are both silent no-ops there. The share
+   sheet is the one native surface that works: share the PDF file
+   and the user picks Print (AirPrint) from it. Returns 'shared'
+   when the sheet completed, 'cancelled' when the user dismissed
+   it, and 'unsupported' when file sharing is not available, so
+   callers only fall through to the PDF flow in the last case. */
+async function sharePdfBytes(bytes, filename) {
+  try {
+    const file = new File([bytes], filename, { type: 'application/pdf' });
+    if (!navigator.canShare || !navigator.canShare({ files: [file] })) return 'unsupported';
+    await navigator.share({ files: [file], title: 'Pantser labels' });
+    return 'shared';
+  } catch (e) {
+    if (e && e.name === 'AbortError') return 'cancelled';
+    return 'unsupported';
+  }
+}
+
 /* Shared by size labels and item labels: open the PDF in a hidden
    frame and invoke the browser print dialog. This is the web mapping
    of the Android print dialog. */
@@ -410,6 +429,13 @@ async function printPdfBytes(bytes, sheet) {
   if (sheet && useHtmlPrint()) {
     try { printHtmlSheet(sheet.sizeTexts, sheet.barcode); return; }
     catch (e) { /* fall through to the PDF flow, never worse than today */ }
+  }
+  /* iOS standalone: no print UI exists, so hand the PDF to the
+     native share sheet instead of the silent hidden-frame path. */
+  if (iosStandalone()) {
+    const outcome = await sharePdfBytes(bytes, sheet ? 'pantser-size-labels.pdf' : 'pantser-item-labels.pdf');
+    if (outcome !== 'unsupported') return;
+    /* fall through: share unavailable, today's PDF flow is the last resort */
   }
   const blob = new Blob([bytes], { type: 'application/pdf' });
   const url = URL.createObjectURL(blob);

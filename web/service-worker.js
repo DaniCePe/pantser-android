@@ -1,8 +1,10 @@
 /* Pantser PWA service worker. Offline-first: caches the app shell on
    install so the app opens and generates PDFs with no connection.
    Version history lives in web/CHANGELOG.md.
-   v1.11.0 cleans up the web code, with no behavior change. */
-const CACHE = 'pantser-v21';
+   v1.11.0 cleans up the web code, with no behavior change.
+   v1.12.0 shares the PDF via the native share sheet on iOS
+   standalone web apps, where no print UI exists. */
+const CACHE = 'pantser-v22';
 const ASSETS = [
   './',
   './index.html',

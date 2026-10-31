@@ -2,6 +2,10 @@
 
 Every publishing ships with its own dated, versioned entry.
 
+## [2026-10-31] [v1.12.0]
+- Added: on iOS standalone web apps (added to Home Screen), tapping Print now opens the native share sheet with the label PDF, so the user can pick Print from it. window.print() and the hidden-frame PDF print are both silent no-ops in that mode, since a web app has no print UI of its own. Desktop, Android, and Safari browser printing are untouched, and if file sharing is unavailable the app falls back to the previous PDF flow.
+- Service worker cache bumped to pantser-v22.
+
 ## [2026-10-30] [v1.11.0]
 - Changed: cleaned up the web code for readability, with no change
   to what the app does. The code is human readable now, no
